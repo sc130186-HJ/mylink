@@ -13,8 +13,9 @@ export default function Home() {
         </h1>
 
         {/* 소개글 */}
-        <p className="text-gray-600 dark:text-neutral-400 text-base leading-relaxed">
-          안녕하세요! 바이브 코딩을 배우고 있는 대학생입니다.
+        <p className="text-gray-600 dark:text-neutral-400 text-base leading-relaxed break-keep">
+          아이디어를 코드로 실현하는 개발자입니다. <br />
+          문제를 해결하고 가치 있는 사용자 경험을 만드는 것에 열정을 가지고 있습니다.
         </p>
       </div>
     </main>
