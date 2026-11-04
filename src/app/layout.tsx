@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -9,10 +13,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "신예헌 | 개발자 프로필",
-  description: "아이디어를 코드로 실현하는 개발자 신예헌의 프로필이에요.",
-  keywords: ["신예헌", "MyLink", "개발자 프로필", "TDS", "프론트엔드", "풀스택"],
-  authors: [{ name: "신예헌" }],
+  title: "이지은 | MyLink (마이링크)",
+  description: "사용자 경험과 깔끔한 인터랙션에 진심인 프론트엔드 개발자 이지은의 링크 모음이에요.",
+  keywords: ["이지은", "MyLink", "마이링크", "링크트리", "프론트엔드", "포트폴리오", "TDS"],
+  authors: [{ name: "이지은" }],
 };
 
 export default function RootLayout({
@@ -21,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className="h-full bg-[#F9FAFB]">
+    <html lang="ko" className={cn("h-full bg-[#F9FAFB]", "font-sans", geist.variable)}>
       <head>
         <link
           rel="stylesheet"
