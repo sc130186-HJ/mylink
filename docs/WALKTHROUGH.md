@@ -59,10 +59,14 @@ sequenceDiagram
 - 뱃지 문구(예: `NEW`, `HOT`, `추천`)를 입력하면 상단에 shadcn/ui TDS 뱃지 미리보기가 즉시 렌더링됩니다.
 - 블루, 그린, 옐로우, 레드, 그레이 5가지 TDS 테마 칩 중 원하는 색상을 클릭하여 지정할 수 있습니다.
 
-### 3.4 복사 전용 링크 (`isCopyAction`)
-- "클릭 시 클립보드 복사 전용"을 체크하면:
-  - 입력 라벨이 "복사할 값 (이메일 등)"으로 동적 변경됩니다.
-  - 생성된 카드는 새 창으로 이동하지 않고, 클릭 시 해당 값이 클립보드에 복사되며 전용 토스트가 뜹니다.
+### 3.5 고도화된 실시간 입력 검증 (Validation)
+- **제목 (`title`)**: 필수 입력, 최대 30자 제한. 초과 시 즉각적인 인라인 에러와 글자 수 카운터 피드백 (`${title.length}/30자`).
+- **보조 설명 (`subtitle`)**: 선택 입력, 최대 60자 제한 및 실시간 카운터 (`${subtitle.length}/60자`).
+- **URL (`url`)**:
+  - 일반 링크: 공백 포함 여부 확인 및 올바른 웹 URL 패턴 검증 (형식이 맞지 않으면 `"올바른 웹 주소(URL) 형식을 입력해 주세요"` 경고).
+  - 복사 전용 모드: 이메일 아이콘이거나 `@` 포함 시 정밀 이메일 포맷(`user@example.com`) 검증.
+- **강조 뱃지 (`badgeText`)**: 10자 이내 제한 및 카운터 피드백.
+- **자동 포커스 이동 (`useRef`)**: 제출(Submit) 시 유효하지 않은 첫 번째 입력 필드로 즉각 포커스를 이동시켜 사용자의 수정을 돕습니다.
 
 ---
 
@@ -91,9 +95,44 @@ sequenceDiagram
 
 ---
 
-## 5. 검증 결과 (Verification Results)
+## 5. 브라우저 실환경 테스트 및 검증 결과 (Live Browser Verification)
 
-1. **빌드 검증 (`npm run build`)**:  
-   - Next.js 16.4.4 (webpack) 정적 페이지 생성 및 TypeScript 타입 검사 성공 완료 (에러 0건).
-2. **린트 검증 (`npm run lint`)**:  
-   - React 19의 `react-hooks/set-state-in-effect` 룰 및 Next.js 이미지 접근성 규칙 준수 완료 (0 errors, 0 warnings).
+실제 Chrome 브라우저 환경(`http://localhost:3000`)에서 헤드리스 자동화 테스트를 구동하여 다이얼로그 오픈부터 폼 입력, 데이터 생성, 토스트 알림, 영속성 복원까지의 전 과정을 성공적으로 검증했습니다.
+
+### 5.1 단계별 스크린샷 워크스루
+
+````carousel
+![01 초기 화면](/Users/yh/.gemini/antigravity/brain/1afe23c8-5a82-41ce-8b3f-75b93c715a55/screenshots/01_initial_page.png)
+<!-- slide -->
+![02 다이얼로그 모달 오픈](/Users/yh/.gemini/antigravity/brain/1afe23c8-5a82-41ce-8b3f-75b93c715a55/screenshots/02_dialog_opened.png)
+<!-- slide -->
+![03 빈 값 제출 시 필수값 에러 검증](/Users/yh/.gemini/antigravity/brain/1afe23c8-5a82-41ce-8b3f-75b93c715a55/screenshots/val_01_empty_submit.png)
+<!-- slide -->
+![04 잘못된 URL 형식 입력 에러 검증](/Users/yh/.gemini/antigravity/brain/1afe23c8-5a82-41ce-8b3f-75b93c715a55/screenshots/val_02_invalid_url.png)
+<!-- slide -->
+![05 글자 수 제한 초과 에러 검증](/Users/yh/.gemini/antigravity/brain/1afe23c8-5a82-41ce-8b3f-75b93c715a55/screenshots/val_03_length_limit.png)
+<!-- slide -->
+![06 폼 작성 및 스마트 감지](/Users/yh/.gemini/antigravity/brain/1afe23c8-5a82-41ce-8b3f-75b93c715a55/screenshots/03_form_filled.png)
+<!-- slide -->
+![07 링크 추가 및 플로팅 토스트](/Users/yh/.gemini/antigravity/brain/1afe23c8-5a82-41ce-8b3f-75b93c715a55/screenshots/04_link_added_toast.png)
+<!-- slide -->
+![08 새로고침 후 영속성 유지](/Users/yh/.gemini/antigravity/brain/1afe23c8-5a82-41ce-8b3f-75b93c715a55/screenshots/05_reloaded_persistent.png)
+````
+
+### 5.2 검증 항목 체크리스트
+1. **다이얼로그 진입 (Pass)**:  
+   - '대표 프로젝트' 섹션 우측의 `+ 추가` 버튼 클릭 시 해당 카테고리가 선택된 채로 모달 오픈.
+2. **스마트 감지 및 뱃지 설정 (Pass)**:  
+   - `https://github.com/jieun/link-analyzer` 입력 시 GitHub 아이콘 자동 선택.
+   - `HOT` 뱃지 텍스트와 `red` 뱃지 칩 선택 시 실시간 뱃지 프리뷰 정상 반영.
+3. **로컬 상태 및 LocalStorage 반영 (Pass)**:  
+   - 추가 즉시 대표 프로젝트 섹션 최상단에 신규 카드 렌더링.
+   - 브라우저 LocalStorage (`mylink_profile_data`)에 `link-1793832320576` 객체 정상 적재.
+4. **TDS 피드백 (Pass)**:  
+   - `"새 링크가 추가되었어요 ✨"` 플로팅 토스트 노출.
+5. **새로고침 영속성 (Pass)**:  
+   - 브라우저 새로고침(F5) 후에도 새로 추가된 링크 카드가 온전히 복원되어 화면에 노출됨 확인.
+6. **빌드 및 린트 검증 (Pass)**:  
+   - `npm run build`: 프로덕션 번들 정상 생성 (TypeScript 검사 통과).
+   - `npm run lint`: ESLint 규칙 통과 (0 errors, 0 warnings).
+

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,7 @@ import {
   FolderGit2,
   Link2,
   Sparkles,
+  AlertCircle,
 } from "lucide-react";
 
 interface AddLinkModalProps {
@@ -56,6 +57,29 @@ const BADGE_VARIANTS: {
   { variant: "grey", label: "그레이", badgeVariant: "neutral" },
 ];
 
+// 제한 글자 수 상수
+const MAX_TITLE_LENGTH = 30;
+const MAX_SUBTITLE_LENGTH = 60;
+const MAX_BADGE_LENGTH = 10;
+
+// URL 형식 검증 (도메인 포함 표준 웹 주소 패턴)
+function isValidWebUrl(urlString: string): boolean {
+  const trimmed = urlString.trim();
+  if (/\s/.test(trimmed)) return false;
+
+  // http:// or https:// 부착 여부와 무관하게 유효한 도메인 형태인지 검사
+  const urlPattern =
+    /^(https?:\/\/)?([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:\d+)?(\/.*)?$/i;
+  return urlPattern.test(trimmed);
+}
+
+// 이메일 형식 검증
+function isValidEmail(emailString: string): boolean {
+  const trimmed = emailString.trim().replace(/^mailto:/i, "");
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailPattern.test(trimmed);
+}
+
 interface AddLinkFormProps {
   categories: LinkCategory[];
   defaultCategoryId?: string;
@@ -87,15 +111,83 @@ function AddLinkForm({
   const [errors, setErrors] = useState<{
     category?: string;
     title?: string;
+    subtitle?: string;
     url?: string;
+    badgeText?: string;
   }>({});
 
-  // URL 입력에 따라 아이콘 추천 (UX 편의 기능)
+  // 포커스 이동을 위한 Refs
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const subtitleInputRef = useRef<HTMLInputElement>(null);
+  const urlInputRef = useRef<HTMLInputElement>(null);
+  const badgeInputRef = useRef<HTMLInputElement>(null);
+
+  // 제목 검증 함수
+  const validateTitle = (val: string): string | undefined => {
+    const trimmed = val.trim();
+    if (!trimmed) {
+      return "링크 제목을 입력해 주세요";
+    }
+    if (val.length > MAX_TITLE_LENGTH) {
+      return `링크 제목은 ${MAX_TITLE_LENGTH}자 이내로 입력해 주세요`;
+    }
+    return undefined;
+  };
+
+  // 보조 설명 검증 함수
+  const validateSubtitle = (val: string): string | undefined => {
+    if (val.length > MAX_SUBTITLE_LENGTH) {
+      return `보조 설명은 ${MAX_SUBTITLE_LENGTH}자 이내로 입력해 주세요`;
+    }
+    return undefined;
+  };
+
+  // URL / 값 검증 함수
+  const validateUrl = (val: string, copyMode: boolean, icon: IconType): string | undefined => {
+    const trimmed = val.trim();
+    if (!trimmed) {
+      return copyMode ? "복사할 값을 입력해 주세요" : "URL 주소를 입력해 주세요";
+    }
+
+    if (copyMode) {
+      // 복사 모드일 때 이메일 아이콘이거나 @가 포함된 경우 이메일 형식 검증
+      if (icon === "email" || trimmed.includes("@")) {
+        if (!isValidEmail(trimmed)) {
+          return "올바른 이메일 형식을 입력해 주세요 (예: user@example.com)";
+        }
+      }
+      if (trimmed.length < 2) {
+        return "2자 이상 입력해 주세요";
+      }
+    } else {
+      // 일반 링크 모드: 공백 체크 및 웹 URL 규격 검증
+      if (/\s/.test(trimmed)) {
+        return "URL 주소에는 공백이 들어갈 수 없어요";
+      }
+      if (!isValidWebUrl(trimmed)) {
+        return "올바른 웹 주소(URL) 형식을 입력해 주세요 (예: https://...)";
+      }
+    }
+    return undefined;
+  };
+
+  // 뱃지 텍스트 검증 함수
+  const validateBadgeText = (val: string): string | undefined => {
+    if (val.length > MAX_BADGE_LENGTH) {
+      return `뱃지 문구는 ${MAX_BADGE_LENGTH}자 이내로 입력해 주세요`;
+    }
+    return undefined;
+  };
+
+  // URL 입력 처리 (아이콘 스마트 감지 포함)
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setUrl(val);
 
-    // 기본 아이콘 상태일 때 자동 감지
+    let nextIcon = selectedIcon;
+    let nextCopyAction = isCopyAction;
+
+    // 기본 아이콘 상태일 때 URL 기반 자동 감지
     if (
       selectedIcon === "link" ||
       selectedIcon === "github" ||
@@ -104,51 +196,107 @@ function AddLinkForm({
       selectedIcon === "email"
     ) {
       if (val.includes("github.com")) {
+        nextIcon = "github";
         setSelectedIcon("github");
       } else if (val.includes("velog.io")) {
+        nextIcon = "velog";
         setSelectedIcon("velog");
       } else if (val.includes("linkedin.com")) {
+        nextIcon = "linkedin";
         setSelectedIcon("linkedin");
       } else if (val.startsWith("mailto:") || (val.includes("@") && !val.includes("/"))) {
+        nextIcon = "email";
+        nextCopyAction = true;
         setSelectedIcon("email");
         setIsCopyAction(true);
       }
     }
 
-    if (errors.url && val.trim()) {
-      setErrors((prev) => ({ ...prev, url: undefined }));
-    }
+    // 실시간 에러 검증
+    const err = validateUrl(val, nextCopyAction, nextIcon);
+    setErrors((prev) => ({ ...prev, url: err }));
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setTitle(val);
-    if (errors.title && val.trim()) {
-      setErrors((prev) => ({ ...prev, title: undefined }));
+    const err = validateTitle(val);
+    setErrors((prev) => ({ ...prev, title: err }));
+  };
+
+  const handleSubtitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSubtitle(val);
+    const err = validateSubtitle(val);
+    setErrors((prev) => ({ ...prev, subtitle: err }));
+  };
+
+  const handleBadgeTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setBadgeText(val);
+    const err = validateBadgeText(val);
+    setErrors((prev) => ({ ...prev, badgeText: err }));
+  };
+
+  // 복사 모드 토글 시 URL 재검증
+  const handleCopyActionToggle = (checked: boolean) => {
+    setIsCopyAction(checked);
+    if (url.trim()) {
+      const err = validateUrl(url, checked, selectedIcon);
+      setErrors((prev) => ({ ...prev, url: err }));
+    }
+  };
+
+  // 아이콘 선택 시 재검증
+  const handleSelectIcon = (icon: IconType) => {
+    setSelectedIcon(icon);
+    if (url.trim()) {
+      const err = validateUrl(url, isCopyAction, icon);
+      setErrors((prev) => ({ ...prev, url: err }));
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newErrors: { category?: string; title?: string; url?: string } = {};
+    const titleError = validateTitle(title);
+    const subtitleError = validateSubtitle(subtitle);
+    const urlError = validateUrl(url, isCopyAction, selectedIcon);
+    const badgeError = validateBadgeText(badgeText);
+    const categoryError = !selectedCategoryId ? "카테고리를 선택해 주세요" : undefined;
 
-    if (!selectedCategoryId) {
-      newErrors.category = "카테고리를 선택해 주세요";
-    }
-    if (!title.trim()) {
-      newErrors.title = "링크 제목을 입력해 주세요";
-    }
-    if (!url.trim()) {
-      newErrors.url = "URL 또는 값을 입력해 주세요";
-    }
+    const newErrors = {
+      category: categoryError,
+      title: titleError,
+      subtitle: subtitleError,
+      url: urlError,
+      badgeText: badgeError,
+    };
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    setErrors(newErrors);
+
+    // 에러 발생 시 첫 번째 에러 입력창으로 포커스 이동
+    if (titleError) {
+      titleInputRef.current?.focus();
+      return;
+    }
+    if (subtitleError) {
+      subtitleInputRef.current?.focus();
+      return;
+    }
+    if (urlError) {
+      urlInputRef.current?.focus();
+      return;
+    }
+    if (badgeError) {
+      badgeInputRef.current?.focus();
+      return;
+    }
+    if (categoryError) {
       return;
     }
 
-    // URL 유효성 보정 (http/https 또는 mailto가 없는 웹 링크면 https:// 부착)
+    // URL 유효성 보정 (http/https 또는 mailto가 없는 웹 링크면 https:// 자동 부착)
     let finalUrl = url.trim();
     if (
       !isCopyAction &&
@@ -208,16 +356,11 @@ function AddLinkForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+    <form onSubmit={handleSubmit} className="mt-4 space-y-4" noValidate>
       {/* 1. 카테고리 선택 */}
       <div className="space-y-1.5">
         <label className="text-[13px] font-semibold text-[#4E5968] flex items-center justify-between">
           <span>카테고리 *</span>
-          {errors.category && (
-            <span className="text-[11px] text-[#F04452] font-normal">
-              {errors.category}
-            </span>
-          )}
         </label>
         <div className="relative">
           <select
@@ -228,7 +371,9 @@ function AddLinkForm({
                 setErrors((prev) => ({ ...prev, category: undefined }));
               }
             }}
-            className="w-full h-11 px-3.5 pr-8 rounded-[12px] bg-[#F9FAFB] border border-[#E5E8EB] text-[14px] text-[#191F28] appearance-none focus:bg-white focus:border-[#3182F6] focus:ring-3 focus:ring-[#3182F6]/15 outline-none cursor-pointer transition-all"
+            className={`w-full h-11 px-3.5 pr-8 rounded-[12px] bg-[#F9FAFB] border text-[14px] text-[#191F28] appearance-none focus:bg-white focus:border-[#3182F6] focus:ring-3 focus:ring-[#3182F6]/15 outline-none cursor-pointer transition-all ${
+              errors.category ? "border-[#F04452] bg-[#FFF0F1]" : "border-[#E5E8EB]"
+            }`}
           >
             {categories.map((cat) => (
               <option key={cat.id} value={cat.id}>
@@ -242,55 +387,98 @@ function AddLinkForm({
             </svg>
           </div>
         </div>
+        {errors.category && (
+          <p className="text-[12px] text-[#F04452] flex items-center gap-1 mt-1 font-medium">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{errors.category}</span>
+          </p>
+        )}
       </div>
 
       {/* 2. 링크 제목 */}
       <div className="space-y-1.5">
-        <label className="text-[13px] font-semibold text-[#4E5968] flex items-center justify-between">
-          <span>링크 제목 *</span>
-          {errors.title && (
-            <span className="text-[11px] text-[#F04452] font-normal">
-              {errors.title}
-            </span>
-          )}
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-[13px] font-semibold text-[#4E5968]">
+            링크 제목 *
+          </label>
+          <span
+            className={`text-[11px] tabular-nums font-medium ${
+              title.length > MAX_TITLE_LENGTH ? "text-[#F04452]" : "text-[#8B95A1]"
+            }`}
+          >
+            {title.length}/{MAX_TITLE_LENGTH}자
+          </span>
+        </div>
         <Input
+          ref={titleInputRef}
           value={title}
           onChange={handleTitleChange}
           placeholder="예: 모던 포트폴리오 웹"
           error={!!errors.title}
         />
+        {errors.title && (
+          <p className="text-[12px] text-[#F04452] flex items-center gap-1 mt-1 font-medium">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{errors.title}</span>
+          </p>
+        )}
       </div>
 
       {/* 3. 보조 설명 (선택) */}
       <div className="space-y-1.5">
-        <label className="text-[13px] font-semibold text-[#4E5968] flex items-center justify-between">
-          <span>보조 설명</span>
-          <span className="text-[11px] text-[#8B95A1] font-normal">선택</span>
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-[13px] font-semibold text-[#4E5968] flex items-center gap-1.5">
+            <span>보조 설명</span>
+            <span className="text-[11px] text-[#8B95A1] font-normal">선택</span>
+          </label>
+          <span
+            className={`text-[11px] tabular-nums font-medium ${
+              subtitle.length > MAX_SUBTITLE_LENGTH ? "text-[#F04452]" : "text-[#8B95A1]"
+            }`}
+          >
+            {subtitle.length}/{MAX_SUBTITLE_LENGTH}자
+          </span>
+        </div>
         <Input
+          ref={subtitleInputRef}
           value={subtitle}
-          onChange={(e) => setSubtitle(e.target.value)}
+          onChange={handleSubtitleChange}
           placeholder="예: Next.js 16과 Tailwind로 제작"
+          error={!!errors.subtitle}
         />
+        {errors.subtitle && (
+          <p className="text-[12px] text-[#F04452] flex items-center gap-1 mt-1 font-medium">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{errors.subtitle}</span>
+          </p>
+        )}
       </div>
 
       {/* 4. URL / 값 */}
       <div className="space-y-1.5">
-        <label className="text-[13px] font-semibold text-[#4E5968] flex items-center justify-between">
-          <span>{isCopyAction ? "복사할 값 (이메일 등) *" : "URL 주소 *"}</span>
-          {errors.url && (
-            <span className="text-[11px] text-[#F04452] font-normal">
-              {errors.url}
+        <div className="flex items-center justify-between">
+          <label className="text-[13px] font-semibold text-[#4E5968]">
+            {isCopyAction ? "복사할 값 (이메일 등) *" : "URL 주소 *"}
+          </label>
+          {!isCopyAction && (
+            <span className="text-[11px] text-[#8B95A1]">
+              https:// 자동 보정
             </span>
           )}
-        </label>
+        </div>
         <Input
+          ref={urlInputRef}
           value={url}
           onChange={handleUrlChange}
           placeholder={isCopyAction ? "user@example.com" : "https://github.com/..."}
           error={!!errors.url}
         />
+        {errors.url && (
+          <p className="text-[12px] text-[#F04452] flex items-center gap-1 mt-1 font-medium">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{errors.url}</span>
+          </p>
+        )}
       </div>
 
       {/* 5. 아이콘 선택 */}
@@ -305,7 +493,7 @@ function AddLinkForm({
               <button
                 key={item.type}
                 type="button"
-                onClick={() => setSelectedIcon(item.type)}
+                onClick={() => handleSelectIcon(item.type)}
                 className={`flex items-center gap-2 px-2.5 py-2 rounded-[12px] border transition-all text-left cursor-pointer ${
                   isSelected
                     ? "border-[#3182F6] bg-[#E8F3FF] text-[#3182F6] shadow-xs"
@@ -332,27 +520,44 @@ function AddLinkForm({
           <span className="text-[13px] font-semibold text-[#4E5968]">
             강조 뱃지 (선택)
           </span>
-          {badgeText.trim() && (
-            <Badge
-              variant={
-                BADGE_VARIANTS.find((b) => b.variant === badgeVariant)
-                  ?.badgeVariant || "neutral"
-              }
-              shape="rounded"
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-[11px] tabular-nums font-medium ${
+                badgeText.length > MAX_BADGE_LENGTH ? "text-[#F04452]" : "text-[#8B95A1]"
+              }`}
             >
-              {badgeText.trim()}
-            </Badge>
-          )}
+              {badgeText.length}/{MAX_BADGE_LENGTH}자
+            </span>
+            {badgeText.trim() && (
+              <Badge
+                variant={
+                  BADGE_VARIANTS.find((b) => b.variant === badgeVariant)
+                    ?.badgeVariant || "neutral"
+                }
+                shape="rounded"
+              >
+                {badgeText.trim()}
+              </Badge>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Input
+            ref={badgeInputRef}
             value={badgeText}
-            onChange={(e) => setBadgeText(e.target.value)}
+            onChange={handleBadgeTextChange}
             placeholder="뱃지 문구 (예: NEW, HOT)"
             className="h-9 text-[13px] bg-white"
+            error={!!errors.badgeText}
           />
         </div>
+        {errors.badgeText && (
+          <p className="text-[12px] text-[#F04452] flex items-center gap-1 font-medium">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{errors.badgeText}</span>
+          </p>
+        )}
 
         {badgeText.trim() && (
           <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
@@ -380,7 +585,7 @@ function AddLinkForm({
         <input
           type="checkbox"
           checked={isCopyAction}
-          onChange={(e) => setIsCopyAction(e.target.checked)}
+          onChange={(e) => handleCopyActionToggle(e.target.checked)}
           className="mt-0.5 w-4 h-4 rounded text-[#3182F6] focus:ring-[#3182F6] cursor-pointer"
         />
         <div className="flex-1">

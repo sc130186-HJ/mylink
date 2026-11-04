@@ -45,6 +45,14 @@ flowchart TD
   - [x] 6종 아이콘 프리셋 선택 그리드 (`GitHub`, `Velog`, `프로젝트`, `LinkedIn`, `이메일`, `기본 링크`)
   - [x] 강조 뱃지 문구 및 5색 컬러 칩 (`blue`, `green`, `yellow`, `red`, `grey`) 선택과 실시간 프리뷰
   - [x] 클릭 시 클립보드 복사 전용 옵션 (`isCopyAction`) 토글
+- [x] **고도화된 입력 검증 (Validation) 구현**
+  - [x] 제목 필수 입력 및 30자 초과 방지 실시간 카운터 (`${title.length}/30자`)
+  - [x] 보조 설명 60자 초과 방지 실시간 카운터 (`${subtitle.length}/60자`)
+  - [x] 일반 링크: 공백 금지 및 올바른 웹 URL 규격 검증 정규식 적용
+  - [x] 복사 전용 모드: 이메일 형식(`user@example.com`) 및 최소 길이 유효성 검증
+  - [x] 강조 뱃지 문구 10자 이내 제한 검증
+  - [x] 실시간 에러 피드백 (`AlertCircle` 아이콘 및 토스 레드 텍스트/보더)
+  - [x] 제출 시 첫 번째 오류 필드로 자동 포커스 이동 (`useRef`)
 - [x] **버튼 및 인터랙션**
   - [x] 취소 버튼 (`variant="secondary"`)
   - [x] 추가하기 버튼 (`variant="primary"`)
