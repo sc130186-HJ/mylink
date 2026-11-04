@@ -1,16 +1,22 @@
 "use client";
 
 import React from "react";
-import { RotateCcw, QrCode, Share2 } from "lucide-react";
+import { RotateCcw, QrCode, Share2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface TopBarProps {
   onReset: () => void;
   onOpenQr: () => void;
   onCopyPageUrl: () => void;
+  onOpenAddLink?: () => void;
 }
 
-export function TopBar({ onReset, onOpenQr, onCopyPageUrl }: TopBarProps) {
+export function TopBar({
+  onReset,
+  onOpenQr,
+  onCopyPageUrl,
+  onOpenAddLink,
+}: TopBarProps) {
   return (
     <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-[#E5E8EB]">
       <div className="max-w-md mx-auto px-5 h-14 flex items-center justify-between">
@@ -24,6 +30,21 @@ export function TopBar({ onReset, onOpenQr, onCopyPageUrl }: TopBarProps) {
 
         {/* 유틸리티 액션 그룹 (shadcn/ui Button 재사용) */}
         <div className="flex items-center space-x-1.5">
+          {/* 새 링크 추가 버튼 */}
+          {onOpenAddLink && (
+            <Button
+              variant="subtle"
+              size="s"
+              onClick={onOpenAddLink}
+              title="새 링크 추가"
+              aria-label="새 링크 추가"
+              className="gap-1 px-2.5 text-[#3182F6]"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span className="hidden xs:inline">추가</span>
+            </Button>
+          )}
+
           {/* 데이터 초기화 버튼 */}
           <Button
             variant="icon"
@@ -48,7 +69,7 @@ export function TopBar({ onReset, onOpenQr, onCopyPageUrl }: TopBarProps) {
 
           {/* 링크 복사 버튼 */}
           <Button
-            variant="subtle"
+            variant="icon"
             size="icon-m"
             onClick={onCopyPageUrl}
             title="페이지 링크 복사"

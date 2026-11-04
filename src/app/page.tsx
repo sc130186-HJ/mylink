@@ -8,6 +8,8 @@ import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { CategorySection } from "@/components/profile/CategorySection";
 import { QrModal } from "@/components/profile/QrModal";
 import { Toast } from "@/components/profile/Toast";
+import { AddLinkModal } from "@/components/profile/AddLinkModal";
+import { LinkItem } from "@/types/profile";
 
 const STORAGE_KEY = "mylink_profile_data";
 
@@ -15,27 +17,33 @@ export default function Home() {
   const [data, setData] = useState<ProfileData>(defaultData as ProfileData);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isQrOpen, setIsQrOpen] = useState(false);
+  const [isAddLinkOpen, setIsAddLinkOpen] = useState(false);
+  const [targetCategoryId, setTargetCategoryId] = useState<string | undefined>(undefined);
   const [currentUrl, setCurrentUrl] = useState("");
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 로컬 스토리지 데이터 동기화 및 현재 URL 설정
   useEffect(() => {
-    setCurrentUrl(window.location.href);
+    const init = () => {
+      setCurrentUrl(window.location.href);
 
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.profile && parsed?.categories) {
-          setData(parsed);
-          return;
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.profile && parsed?.categories) {
+            setData(parsed);
+            return;
+          }
         }
+        // 저장된 데이터가 없으면 초기 mockData 저장
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultData));
+      } catch {
+        // 로컬 스토리지 접근 불가 시 기본 상태 유지
       }
-      // 저장된 데이터가 없으면 초기 mockData 저장
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultData));
-    } catch {
-      // 로컬 스토리지 접근 불가 시 기본 상태 유지
-    }
+    };
+
+    queueMicrotask(init);
   }, []);
 
   // 토스트 메시지 띄우기 (2.4초 자동 소멸 - PRD 규격)
@@ -69,6 +77,45 @@ export default function Home() {
     showToast("마이링크 주소가 복사되었어요 ✨");
   };
 
+  // 링크 추가 모달 열기
+  const handleOpenAddLink = (categoryId?: string) => {
+    setTargetCategoryId(categoryId);
+    setIsAddLinkOpen(true);
+  };
+
+  // 새 링크 추가 처리 (로컬 상태 및 LocalStorage 반영)
+  const handleAddLink = (categoryId: string, newItem: Omit<LinkItem, "id">) => {
+    const newLinkItem: LinkItem = {
+      ...newItem,
+      id: `link-${Date.now()}`,
+    };
+
+    const updatedCategories = data.categories.map((category) => {
+      if (category.id === categoryId) {
+        return {
+          ...category,
+          items: [newLinkItem, ...category.items],
+        };
+      }
+      return category;
+    });
+
+    const updatedData: ProfileData = {
+      ...data,
+      categories: updatedCategories,
+    };
+
+    setData(updatedData);
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+    } catch {
+      // 로컬 스토리지 접근 불가 시 에러 방어
+    }
+
+    showToast("새 링크가 추가되었어요 ✨");
+  };
+
   return (
     <div className="min-h-screen bg-[#F9FAFB] text-[#191F28] flex flex-col justify-between">
       <div>
@@ -77,6 +124,7 @@ export default function Home() {
           onReset={handleResetData}
           onOpenQr={() => setIsQrOpen(true)}
           onCopyPageUrl={handleCopyPageUrl}
+          onOpenAddLink={() => handleOpenAddLink()}
         />
 
         {/* 2. 메인 컨텐츠 영역 (모바일 최적화 뷰포트 max-w-md) */}
@@ -91,6 +139,7 @@ export default function Home() {
                 key={category.id}
                 category={category}
                 onToast={showToast}
+                onAddLink={(catId) => handleOpenAddLink(catId)}
               />
             ))}
           </div>
@@ -105,7 +154,16 @@ export default function Home() {
         )}
       </footer>
 
-      {/* 4. 시연용 QR 모달 */}
+      {/* 4. 링크 추가 다이얼로그 모달 */}
+      <AddLinkModal
+        isOpen={isAddLinkOpen}
+        onClose={() => setIsAddLinkOpen(false)}
+        categories={data.categories}
+        defaultCategoryId={targetCategoryId}
+        onAddLink={handleAddLink}
+      />
+
+      {/* 5. 시연용 QR 모달 */}
       <QrModal
         isOpen={isQrOpen}
         onClose={() => setIsQrOpen(false)}
@@ -113,7 +171,7 @@ export default function Home() {
         onCopyUrl={handleCopyPageUrl}
       />
 
-      {/* 5. TDS 플로팅 토스트 */}
+      {/* 6. TDS 플로팅 토스트 */}
       <Toast message={toastMessage} />
     </div>
   );
