@@ -10,8 +10,10 @@ import { QrModal } from "@/components/profile/QrModal";
 import { Toast } from "@/components/profile/Toast";
 import { AddLinkModal } from "@/components/profile/AddLinkModal";
 import { LinkItem } from "@/types/profile";
+import { getProfile, saveProfile } from "@/lib/firestore";
 
 const STORAGE_KEY = "mylink_profile_data";
+const PROFILE_ID = "default";
 
 export default function Home() {
   const [data, setData] = useState<ProfileData>(defaultData as ProfileData);
@@ -22,12 +24,25 @@ export default function Home() {
   const [currentUrl, setCurrentUrl] = useState("");
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 로컬 스토리지 데이터 동기화 및 현재 URL 설정
+  // Firestore → LocalStorage 순서로 데이터 초기화
   useEffect(() => {
-    const init = () => {
+    const init = async () => {
       setCurrentUrl(window.location.href);
 
       try {
+        // 1) Firestore에서 최신 데이터 조회
+        const remote = await getProfile(PROFILE_ID);
+        if (remote?.profile && remote?.categories) {
+          setData(remote);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
+          return;
+        }
+      } catch {
+        // Firestore 오류 시 로컬 폴백
+      }
+
+      try {
+        // 2) 로컬 스토리지 폴백
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
@@ -36,14 +51,15 @@ export default function Home() {
             return;
           }
         }
-        // 저장된 데이터가 없으면 초기 mockData 저장
+        // 3) 저장된 데이터가 없으면 mockData를 로컬 + Firestore에 저장
         localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultData));
+        await saveProfile(PROFILE_ID, defaultData as ProfileData).catch(() => {});
       } catch {
         // 로컬 스토리지 접근 불가 시 기본 상태 유지
       }
     };
 
-    queueMicrotask(init);
+    init();
   }, []);
 
   // 토스트 메시지 띄우기 (2.4초 자동 소멸 - PRD 규격)
@@ -58,10 +74,12 @@ export default function Home() {
   };
 
   // 기본 데이터 초기화
-  const handleResetData = () => {
+  const handleResetData = async () => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultData));
-      setData(defaultData as ProfileData);
+      const reset = defaultData as ProfileData;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(reset));
+      setData(reset);
+      await saveProfile(PROFILE_ID, reset).catch(() => {});
       showToast("기본 데이터로 초기화되었어요 🔄");
     } catch {
       showToast("데이터 초기화에 실패했어요");
@@ -83,8 +101,8 @@ export default function Home() {
     setIsAddLinkOpen(true);
   };
 
-  // 새 링크 추가 처리 (로컬 상태 및 LocalStorage 반영)
-  const handleAddLink = (categoryId: string, newItem: Omit<LinkItem, "id">) => {
+  // 새 링크 추가 처리 (Firestore + LocalStorage 반영)
+  const handleAddLink = async (categoryId: string, newItem: Omit<LinkItem, "id">) => {
     const newLinkItem: LinkItem = {
       ...newItem,
       id: `link-${Date.now()}`,
@@ -112,6 +130,9 @@ export default function Home() {
     } catch {
       // 로컬 스토리지 접근 불가 시 에러 방어
     }
+
+    // Firestore에 비동기 저장 (UI 블로킹 없이)
+    await saveProfile(PROFILE_ID, updatedData).catch(() => {});
 
     showToast("새 링크가 추가되었어요 ✨");
   };
