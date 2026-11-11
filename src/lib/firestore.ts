@@ -1,25 +1,43 @@
 /**
- * Firestore 프로필 데이터 CRUD 헬퍼
+ * Firestore 프로필 / 링크 데이터 CRUD 헬퍼
  *
  * 컬렉션 구조:
- *   profiles/{profileId}  → ProfileData 문서
+ *   profiles/{profileId}        → ProfileData 문서 (프로필 전체 저장용)
+ *   user/{userId}/links/{linkId} → LinkItem 개별 문서
  *
  * 사용 예시:
- *   import { getProfile, saveProfile } from '@/lib/firestore';
+ *   import { getProfile, saveProfile, addLink, getLinks, subscribeLinks } from '@/lib/firestore';
  *   const data = await getProfile('default');
  *   await saveProfile('default', updatedData);
+ *   await addLink('anonymous', categoryId, newItem);
+ *   const links = await getLinks('anonymous');
  */
 import {
   doc,
   getDoc,
   setDoc,
+  addDoc,
+  getDocs,
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
   serverTimestamp,
   FirestoreError,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { ProfileData } from '@/types/profile';
+import { ProfileData, LinkItem } from '@/types/profile';
 
 const COLLECTION = 'profiles';
+const USER_COLLECTION = 'user';
+
+/** user/{userId}/links 경로의 컬렉션 ref */
+export const linksRef = (userId = 'anonymous') =>
+  collection(db, USER_COLLECTION, userId, 'links');
+
+// ─────────────────────────────────────────────
+// 프로필 전체 저장 (기존 호환 유지)
+// ─────────────────────────────────────────────
 
 /**
  * Firestore에서 프로필 데이터를 조회합니다.
@@ -56,4 +74,172 @@ export async function saveProfile(profileId = 'default', data: ProfileData): Pro
     console.error('[Firestore] saveProfile 오류:', firestoreError.message);
     throw firestoreError;
   }
+}
+
+// ─────────────────────────────────────────────
+// user/{userId}/links 개별 링크 저장 및 최신순 조회
+// ─────────────────────────────────────────────
+
+export interface FirestoreLinkResult {
+  categoryId: string;
+  item: LinkItem;
+  createdAt?: unknown;
+}
+
+/**
+ * user/{userId}/links 에 링크 아이템 하나를 추가합니다.
+ * @param userId 사용자 ID (기본값: 'anonymous')
+ * @param categoryId 해당 링크가 속한 카테고리 ID
+ * @param item id를 제외한 LinkItem 데이터
+ * @returns 생성된 Firestore 문서 ID
+ */
+export async function addLink(
+  userId = 'anonymous',
+  categoryId: string,
+  item: Omit<LinkItem, 'id'>,
+): Promise<string> {
+  try {
+    // undefined 값 제거 (Firestore는 undefined 필드 전달 시 에러 발생)
+    const cleanItem: Record<string, unknown> = {
+      categoryId,
+      createdAt: serverTimestamp(),
+    };
+    Object.entries(item).forEach(([key, value]) => {
+      if (value !== undefined) {
+        cleanItem[key] = value;
+      }
+    });
+
+    const docRef = await addDoc(linksRef(userId), cleanItem);
+    return docRef.id;
+  } catch (err) {
+    const firestoreError = err as FirestoreError;
+    console.error('[Firestore] addLink 오류:', firestoreError.message);
+    throw firestoreError;
+  }
+}
+
+/**
+ * user/{userId}/links 의 링크 목록을 createdAt 기준 최신순(desc)으로 조회합니다.
+ * @param userId 사용자 ID (기본값: 'anonymous')
+ * @returns FirestoreLinkResult[]
+ */
+export async function getLinks(
+  userId = 'anonymous',
+): Promise<FirestoreLinkResult[]> {
+  try {
+    const q = query(linksRef(userId), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const data = d.data();
+      const categoryId = (data.categoryId as string) || 'channels';
+      const createdAt = data.createdAt;
+      return {
+        categoryId,
+        createdAt,
+        item: {
+          id: d.id,
+          title: (data.title as string) || '',
+          subtitle: data.subtitle as string | undefined,
+          url: (data.url as string) || '',
+          icon: data.icon || 'link',
+          badge: data.badge,
+          isCopyAction: data.isCopyAction,
+        } as LinkItem,
+      };
+    });
+  } catch (err) {
+    console.warn('[Firestore] getLinks orderBy 쿼리 실패, 메모리 정렬 폴백 진행:', err);
+    try {
+      const snap = await getDocs(linksRef(userId));
+      const list: FirestoreLinkResult[] = snap.docs.map((d) => {
+        const data = d.data();
+        const categoryId = (data.categoryId as string) || 'channels';
+        return {
+          categoryId,
+          createdAt: data.createdAt,
+          item: {
+            id: d.id,
+            title: (data.title as string) || '',
+            subtitle: data.subtitle as string | undefined,
+            url: (data.url as string) || '',
+            icon: data.icon || 'link',
+            badge: data.badge,
+            isCopyAction: data.isCopyAction,
+          } as LinkItem,
+        };
+      });
+
+      list.sort((a, b) => {
+        const tA = getTimestampValue(a.createdAt);
+        const tB = getTimestampValue(b.createdAt);
+        return tB - tA;
+      });
+
+      return list;
+    } catch (fallbackErr) {
+      console.error('[Firestore] getLinks 폴백 오류:', fallbackErr);
+      return [];
+    }
+  }
+}
+
+/**
+ * user/{userId}/links 를 실시간 구독(onSnapshot)하여 변경 시 최신순으로 콜백 호출
+ */
+export function subscribeLinks(
+  userId = 'anonymous',
+  onUpdate: (links: FirestoreLinkResult[]) => void,
+  onError?: (err: unknown) => void,
+): () => void {
+  try {
+    const q = query(linksRef(userId), orderBy('createdAt', 'desc'));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const list: FirestoreLinkResult[] = snapshot.docs.map((d) => {
+          const data = d.data();
+          const categoryId = (data.categoryId as string) || 'channels';
+          return {
+            categoryId,
+            createdAt: data.createdAt,
+            item: {
+              id: d.id,
+              title: (data.title as string) || '',
+              subtitle: data.subtitle as string | undefined,
+              url: (data.url as string) || '',
+              icon: data.icon || 'link',
+              badge: data.badge,
+              isCopyAction: data.isCopyAction,
+            } as LinkItem,
+          };
+        });
+        onUpdate(list);
+      },
+      (error) => {
+        console.error('[Firestore] subscribeLinks 실시간 구독 오류:', error);
+        if (onError) onError(error);
+        // 오류 발생 시 단발성 getLinks 호출로 폴백
+        getLinks(userId).then(onUpdate).catch(() => {});
+      },
+    );
+  } catch (err) {
+    console.error('[Firestore] subscribeLinks 초기화 실패:', err);
+    if (onError) onError(err);
+    getLinks(userId).then(onUpdate).catch(() => {});
+    return () => {};
+  }
+}
+
+function getTimestampValue(val: unknown): number {
+  if (!val) return 0;
+  if (typeof (val as { toMillis?: () => number }).toMillis === 'function') {
+    return (val as { toMillis: () => number }).toMillis();
+  }
+  if (val instanceof Date) return val.getTime();
+  if (typeof (val as { seconds?: number }).seconds === 'number') {
+    return (val as { seconds: number }).seconds * 1000;
+  }
+  const parsed = new Date(val as string | number).getTime();
+  return isNaN(parsed) ? 0 : parsed;
 }

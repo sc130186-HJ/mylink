@@ -24,6 +24,7 @@ import {
   Link2,
   Sparkles,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 interface AddLinkModalProps {
@@ -31,7 +32,11 @@ interface AddLinkModalProps {
   onClose: () => void;
   categories: LinkCategory[];
   defaultCategoryId?: string;
-  onAddLink: (categoryId: string, item: Omit<LinkItem, "id">) => void;
+  onAddLink: (
+    categoryId: string,
+    item: Omit<LinkItem, "id">,
+  ) => Promise<void> | void;
+  isLoading?: boolean;
 }
 
 // 아이콘 프리셋 정의
@@ -84,7 +89,11 @@ interface AddLinkFormProps {
   categories: LinkCategory[];
   defaultCategoryId?: string;
   onClose: () => void;
-  onAddLink: (categoryId: string, item: Omit<LinkItem, "id">) => void;
+  onAddLink: (
+    categoryId: string,
+    item: Omit<LinkItem, "id">,
+  ) => Promise<void> | void;
+  isLoading?: boolean;
 }
 
 function AddLinkForm({
@@ -92,6 +101,7 @@ function AddLinkForm({
   defaultCategoryId,
   onClose,
   onAddLink,
+  isLoading = false,
 }: AddLinkFormProps) {
   const initialCategory =
     defaultCategoryId && categories.some((c) => c.id === defaultCategoryId)
@@ -106,6 +116,7 @@ function AddLinkForm({
   const [badgeText, setBadgeText] = useState("");
   const [badgeVariant, setBadgeVariant] = useState<BadgeVariant>("blue");
   const [isCopyAction, setIsCopyAction] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 에러 상태
   const [errors, setErrors] = useState<{
@@ -256,8 +267,9 @@ function AddLinkForm({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting || isLoading) return;
 
     const titleError = validateTitle(title);
     const subtitleError = validateSubtitle(subtitle);
@@ -307,21 +319,27 @@ function AddLinkForm({
       finalUrl = `https://${finalUrl}`;
     }
 
-    onAddLink(selectedCategoryId, {
-      title: title.trim(),
-      subtitle: subtitle.trim() || undefined,
-      url: finalUrl,
-      icon: selectedIcon,
-      badge: badgeText.trim()
-        ? {
-            text: badgeText.trim(),
-            variant: badgeVariant,
-          }
-        : undefined,
-      isCopyAction,
-    });
-
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await Promise.resolve(
+        onAddLink(selectedCategoryId, {
+          title: title.trim(),
+          subtitle: subtitle.trim() || undefined,
+          url: finalUrl,
+          icon: selectedIcon,
+          badge: badgeText.trim()
+            ? {
+                text: badgeText.trim(),
+                variant: badgeVariant,
+              }
+            : undefined,
+          isCopyAction,
+        })
+      );
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // 아이콘 렌더러
@@ -604,6 +622,7 @@ function AddLinkForm({
           type="button"
           variant="secondary"
           size="l"
+          disabled={isSubmitting || isLoading}
           onClick={onClose}
           className="flex-1"
         >
@@ -613,9 +632,17 @@ function AddLinkForm({
           type="submit"
           variant="primary"
           size="l"
-          className="flex-1"
+          disabled={isSubmitting || isLoading}
+          className="flex-1 gap-1.5"
         >
-          추가하기
+          {isSubmitting || isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>저장 중...</span>
+            </>
+          ) : (
+            "추가하기"
+          )}
         </Button>
       </DialogFooter>
     </form>
@@ -628,11 +655,12 @@ export function AddLinkModal({
   categories,
   defaultCategoryId,
   onAddLink,
+  isLoading = false,
 }: AddLinkModalProps) {
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isLoading && onClose()}>
       <DialogContent
-        showCloseButton={true}
+        showCloseButton={!isLoading}
         className="max-w-[420px] w-full text-left max-h-[90vh] overflow-y-auto p-5 sm:p-6"
       >
         <DialogHeader className="space-y-1">
@@ -652,6 +680,7 @@ export function AddLinkModal({
             defaultCategoryId={defaultCategoryId}
             onClose={onClose}
             onAddLink={onAddLink}
+            isLoading={isLoading}
           />
         )}
       </DialogContent>
