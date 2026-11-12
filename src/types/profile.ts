@@ -21,6 +21,7 @@ export interface LinkItem {
   icon: IconType;
   badge?: LinkBadge;
   isCopyAction?: boolean; // 클릭 시 새 창 열기 대신 클립보드 복사 (이메일 등)
+  updatedAt?: string; // 링크 수정 일시 (ISO 문자열)
 }
 
 export interface LinkCategory {

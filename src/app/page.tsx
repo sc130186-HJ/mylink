@@ -302,6 +302,13 @@ export default function Home() {
       applyRemoteLinks(updatedList);
 
       // 3) 로컬 상태 즉각 동기화 (mock 데이터 및 빠른 반응성 보장)
+      const currentIsoTime = new Date().toISOString();
+      const itemWithUpdatedTime: LinkItem = {
+        ...updatedItem,
+        id: linkId,
+        updatedAt: updatedItem.updatedAt || currentIsoTime,
+      };
+
       setData((prev) => {
         const nextCategories = prev.categories.map((cat) => {
           const hasItem = cat.items.some((it) => it.id === linkId);
@@ -309,7 +316,7 @@ export default function Home() {
             return {
               ...cat,
               items: cat.items.map((it) =>
-                it.id === linkId ? { ...updatedItem, id: linkId } : it,
+                it.id === linkId ? itemWithUpdatedTime : it,
               ),
             };
           }
@@ -326,11 +333,18 @@ export default function Home() {
     } catch (err) {
       console.error("Firestore 링크 수정 오류:", err);
       // 네트워크 등 실패 시 로컬 상태라도 업데이트
+      const fallbackIsoTime = new Date().toISOString();
+      const fallbackItemWithTime: LinkItem = {
+        ...updatedItem,
+        id: linkId,
+        updatedAt: updatedItem.updatedAt || fallbackIsoTime,
+      };
+
       setData((prev) => {
         const nextCategories = prev.categories.map((cat) => ({
           ...cat,
           items: cat.items.map((it) =>
-            it.id === linkId ? { ...updatedItem, id: linkId } : it,
+            it.id === linkId ? fallbackItemWithTime : it,
           ),
         }));
         const nextData = { ...prev, categories: nextCategories };

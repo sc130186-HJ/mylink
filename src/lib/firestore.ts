@@ -86,6 +86,7 @@ export interface FirestoreLinkResult {
   categoryId: string;
   item: LinkItem;
   createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 /**
@@ -105,6 +106,7 @@ export async function addLink(
     const cleanItem: Record<string, unknown> = {
       categoryId,
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
     Object.entries(item).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -189,9 +191,11 @@ export async function getLinks(
       const data = d.data();
       const categoryId = (data.categoryId as string) || 'channels';
       const createdAt = data.createdAt;
+      const updatedAt = data.updatedAt;
       return {
         categoryId,
         createdAt,
+        updatedAt,
         item: {
           id: d.id,
           title: (data.title as string) || '',
@@ -200,6 +204,7 @@ export async function getLinks(
           icon: data.icon || 'link',
           badge: data.badge,
           isCopyAction: data.isCopyAction,
+          updatedAt: formatToIsoString(updatedAt),
         } as LinkItem,
       };
     });
@@ -210,9 +215,12 @@ export async function getLinks(
       const list: FirestoreLinkResult[] = snap.docs.map((d) => {
         const data = d.data();
         const categoryId = (data.categoryId as string) || 'channels';
+        const createdAt = data.createdAt;
+        const updatedAt = data.updatedAt;
         return {
           categoryId,
-          createdAt: data.createdAt,
+          createdAt,
+          updatedAt,
           item: {
             id: d.id,
             title: (data.title as string) || '',
@@ -221,6 +229,7 @@ export async function getLinks(
             icon: data.icon || 'link',
             badge: data.badge,
             isCopyAction: data.isCopyAction,
+            updatedAt: formatToIsoString(updatedAt),
           } as LinkItem,
         };
       });
@@ -255,9 +264,12 @@ export function subscribeLinks(
         const list: FirestoreLinkResult[] = snapshot.docs.map((d) => {
           const data = d.data();
           const categoryId = (data.categoryId as string) || 'channels';
+          const createdAt = data.createdAt;
+          const updatedAt = data.updatedAt;
           return {
             categoryId,
-            createdAt: data.createdAt,
+            createdAt,
+            updatedAt,
             item: {
               id: d.id,
               title: (data.title as string) || '',
@@ -266,6 +278,7 @@ export function subscribeLinks(
               icon: data.icon || 'link',
               badge: data.badge,
               isCopyAction: data.isCopyAction,
+              updatedAt: formatToIsoString(updatedAt),
             } as LinkItem,
           };
         });
@@ -284,6 +297,16 @@ export function subscribeLinks(
     getLinks(userId).then(onUpdate).catch(() => {});
     return () => {};
   }
+}
+
+function formatToIsoString(val: unknown): string | undefined {
+  if (!val) return undefined;
+  if (typeof (val as { toDate?: () => Date }).toDate === 'function') {
+    return (val as { toDate: () => Date }).toDate().toISOString();
+  }
+  if (val instanceof Date) return val.toISOString();
+  const ms = getTimestampValue(val);
+  return ms > 0 ? new Date(ms).toISOString() : undefined;
 }
 
 function getTimestampValue(val: unknown): number {

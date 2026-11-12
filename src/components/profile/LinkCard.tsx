@@ -134,6 +134,23 @@ function mapBadgeVariant(variant?: BadgeVariant) {
   }
 }
 
+// 수정 일시(updatedAt) 한글 포맷 헬퍼
+function formatUpdatedAt(isoString?: string): string | null {
+  if (!isoString) return null;
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${y}.${m}.${day} ${h}:${min} 수정됨`;
+  } catch {
+    return null;
+  }
+}
+
 export function LinkCard({
   item,
   onToast,
@@ -310,6 +327,7 @@ export function LinkCard({
           ? { text: editBadgeText.trim(), variant: editBadgeVariant }
           : undefined,
         isCopyAction: editIsCopyAction || undefined,
+        updatedAt: new Date().toISOString(),
       });
       setIsEditing(false);
     } catch {
@@ -620,6 +638,13 @@ export function LinkCard({
           {item.subtitle && (
             <p className="text-[13px] text-[#6B7684] mt-0.5 line-clamp-1">
               {item.subtitle}
+            </p>
+          )}
+
+          {/* 링크 수정 일시 (updatedAt) 표시 */}
+          {item.updatedAt && formatUpdatedAt(item.updatedAt) && (
+            <p className="text-[11px] text-[#8B95A1] mt-0.5 font-normal tracking-tight">
+              {formatUpdatedAt(item.updatedAt)}
             </p>
           )}
         </div>
