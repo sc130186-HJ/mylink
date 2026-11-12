@@ -17,6 +17,8 @@ import {
   getDoc,
   setDoc,
   addDoc,
+  updateDoc,
+  deleteDoc,
   getDocs,
   collection,
   query,
@@ -115,6 +117,59 @@ export async function addLink(
   } catch (err) {
     const firestoreError = err as FirestoreError;
     console.error('[Firestore] addLink 오류:', firestoreError.message);
+    throw firestoreError;
+  }
+}
+
+/**
+ * user/{userId}/links/{linkId} 의 링크 아이템을 수정(업데이트)합니다.
+ * @param userId 사용자 ID (기본값: 'anonymous')
+ * @param linkId 대상 링크 문서 ID
+ * @param categoryId 해당 링크의 카테고리 ID
+ * @param item 수정할 LinkItem 데이터
+ */
+export async function updateLink(
+  userId = 'anonymous',
+  linkId: string,
+  categoryId: string,
+  item: Omit<LinkItem, 'id'>,
+): Promise<void> {
+  try {
+    const docRef = doc(db, USER_COLLECTION, userId, 'links', linkId);
+    const cleanItem: Record<string, unknown> = {
+      categoryId,
+      updatedAt: serverTimestamp(),
+    };
+    Object.entries(item).forEach(([key, value]) => {
+      if (value !== undefined) {
+        cleanItem[key] = value;
+      }
+    });
+
+    // setDoc with merge: true를 사용하여 기존 문서가 없더라도 생성(upsert)
+    await setDoc(docRef, cleanItem, { merge: true });
+  } catch (err) {
+    const firestoreError = err as FirestoreError;
+    console.error('[Firestore] updateLink 오류:', firestoreError.message);
+    throw firestoreError;
+  }
+}
+
+/**
+ * user/{userId}/links/{linkId} 의 링크 아이템을 삭제합니다.
+ * @param userId 사용자 ID (기본값: 'anonymous')
+ * @param linkId 삭제할 링크 문서 ID
+ */
+export async function deleteLink(
+  userId = 'anonymous',
+  linkId: string,
+): Promise<void> {
+  try {
+    const docRef = doc(db, USER_COLLECTION, userId, 'links', linkId);
+    await deleteDoc(docRef);
+  } catch (err) {
+    const firestoreError = err as FirestoreError;
+    console.error('[Firestore] deleteLink 오류:', firestoreError.message);
     throw firestoreError;
   }
 }

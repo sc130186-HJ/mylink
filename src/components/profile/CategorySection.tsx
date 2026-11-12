@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { LinkCategory } from "@/types/profile";
+import { LinkCategory, LinkItem } from "@/types/profile";
 import { LinkCard } from "./LinkCard";
 import { Plus } from "lucide-react";
 
@@ -9,12 +9,20 @@ interface CategorySectionProps {
   category: LinkCategory;
   onToast: (msg: string) => void;
   onAddLink?: (categoryId: string) => void;
+  onUpdateLink?: (
+    linkId: string,
+    categoryId: string,
+    item: Omit<LinkItem, "id">,
+  ) => Promise<void> | void;
+  onDeleteLinkClick?: (categoryId: string, item: LinkItem) => void;
 }
 
 export function CategorySection({
   category,
   onToast,
   onAddLink,
+  onUpdateLink,
+  onDeleteLinkClick,
 }: CategorySectionProps) {
   return (
     <section className="space-y-2.5">
@@ -53,7 +61,22 @@ export function CategorySection({
       <div className="space-y-2.5">
         {category.items.length > 0 ? (
           category.items.map((item) => (
-            <LinkCard key={item.id} item={item} onToast={onToast} />
+            <LinkCard
+              key={item.id}
+              item={item}
+              onToast={onToast}
+              onUpdate={
+                onUpdateLink
+                  ? (linkId, updatedItem) =>
+                      onUpdateLink(linkId, category.id, updatedItem)
+                  : undefined
+              }
+              onDeleteClick={
+                onDeleteLinkClick
+                  ? (clickedItem) => onDeleteLinkClick(category.id, clickedItem)
+                  : undefined
+              }
+            />
           ))
         ) : (
           <div className="py-6 px-4 text-center rounded-[16px] border border-dashed border-[#E5E8EB] bg-white/50">

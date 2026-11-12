@@ -9,11 +9,14 @@ import { CategorySection } from "@/components/profile/CategorySection";
 import { QrModal } from "@/components/profile/QrModal";
 import { Toast } from "@/components/profile/Toast";
 import { AddLinkModal } from "@/components/profile/AddLinkModal";
+import { DeleteLinkModal } from "@/components/profile/DeleteLinkModal";
 import { Loader2 } from "lucide-react";
 import {
   getProfile,
   saveProfile,
   addLink,
+  updateLink,
+  deleteLink,
   getLinks,
   subscribeLinks,
   FirestoreLinkResult,
@@ -22,6 +25,7 @@ import {
 const USER_ID = "anonymous";
 const STORAGE_KEY = "mylink_profile_data";
 const PROFILE_ID = "default";
+const DELETED_IDS_KEY = "mylink_deleted_link_ids";
 
 export default function Home() {
   const [data, setData] = useState<ProfileData>(defaultData as ProfileData);
@@ -33,22 +37,53 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [loadingText, setLoadingText] = useState("링크 목록을 불러오는 중이에요...");
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+
+  // 삭제 확인 모달 대상 링크 상태
+  const [deleteTarget, setDeleteTarget] = useState<{
+    categoryId: string;
+    item: LinkItem;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 삭제된 아이콘/링크 ID 목록 로컬스토리지 초기화
+  useEffect(() => {
+    try {
+      const savedDeleted = localStorage.getItem(DELETED_IDS_KEY);
+      if (savedDeleted) {
+        const parsed = JSON.parse(savedDeleted);
+        if (Array.isArray(parsed)) {
+          setDeletedIds(new Set(parsed));
+        }
+      }
+    } catch {
+      // 로컬 스토리지 읽기 에러 방어
+    }
+  }, []);
 
   // Firestore에서 가져온 링크 목록(createdAt 최신순)을 카테고리별로 반영하는 함수
   const applyRemoteLinks = useCallback(
-    (remoteLinks: FirestoreLinkResult[], baseData?: ProfileData) => {
+    (
+      remoteLinks: FirestoreLinkResult[],
+      baseData?: ProfileData,
+      currentDeletedIds?: Set<string>,
+    ) => {
       setData((prev) => {
         const source = baseData || prev;
-        if (!remoteLinks || remoteLinks.length === 0) {
-          return source;
-        }
+        const activeDeletedIds = currentDeletedIds || deletedIds;
+
+        // 삭제된 아이템 제외 필터링
+        const validRemote = (remoteLinks || []).filter(
+          (r) => !activeDeletedIds.has(r.item.id),
+        );
 
         // 카테고리별로 remoteLinks 분류 (remoteLinks는 createdAt desc 순서 유지)
         const categoryMap = new Map<string, LinkItem[]>();
         const defaultCatId = source.categories[0]?.id || "channels";
 
-        for (const { categoryId, item } of remoteLinks) {
+        for (const { categoryId, item } of validRemote) {
           const targetId = source.categories.some((c) => c.id === categoryId)
             ? categoryId
             : defaultCatId;
@@ -57,16 +92,17 @@ export default function Home() {
           categoryMap.set(targetId, current);
         }
 
-        const firestoreIds = new Set(remoteLinks.map((r) => r.item.id));
-
+        const firestoreIds = new Set(validRemote.map((r) => r.item.id));
         const typedDefaultCategories = (defaultData as ProfileData).categories;
 
         const updatedCategories = source.categories.map((cat) => {
           const firestoreItems = categoryMap.get(cat.id) || [];
-          // 기본 mock / 기존 아이템 중 Firestore와 중복되지 않는 것들은 뒤에 유지
+          // 기본 mock / 기존 아이템 중 삭제되지 않았고 Firestore와 중복되지 않는 것들은 뒤에 유지
           const baseItems = (
             typedDefaultCategories.find((c) => c.id === cat.id)?.items || cat.items
-          ).filter((item) => !firestoreIds.has(item.id));
+          ).filter(
+            (item) => !firestoreIds.has(item.id) && !activeDeletedIds.has(item.id),
+          );
 
           return {
             ...cat,
@@ -88,7 +124,7 @@ export default function Home() {
         return updatedData;
       });
     },
-    [],
+    [deletedIds],
   );
 
   // 1. 페이지 로드 시 Firestore(user/anonymous/links)에서 링크 불러오기 & 실시간 구독
@@ -101,6 +137,18 @@ export default function Home() {
     const initProfile = async () => {
       setLoadingText("링크 목록을 불러오는 중이에요...");
       setIsLoading(true);
+
+      let loadedDeletedIds = new Set<string>();
+      try {
+        const savedDeleted = localStorage.getItem(DELETED_IDS_KEY);
+        if (savedDeleted) {
+          const parsed = JSON.parse(savedDeleted);
+          if (Array.isArray(parsed)) {
+            loadedDeletedIds = new Set(parsed);
+            setDeletedIds(loadedDeletedIds);
+          }
+        }
+      } catch {}
 
       try {
         const remote = await getProfile(PROFILE_ID);
@@ -124,7 +172,7 @@ export default function Home() {
       try {
         const initialLinks = await getLinks(USER_ID);
         if (initialLinks.length > 0) {
-          applyRemoteLinks(initialLinks);
+          applyRemoteLinks(initialLinks, undefined, loadedDeletedIds);
         }
       } catch (err) {
         console.error("초기 링크 로드 오류:", err);
@@ -165,6 +213,8 @@ export default function Home() {
     try {
       const reset = defaultData as ProfileData;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(reset));
+      localStorage.removeItem(DELETED_IDS_KEY);
+      setDeletedIds(new Set());
       setData(reset);
       await saveProfile(PROFILE_ID, reset).catch(() => {});
       showToast("기본 데이터로 초기화되었어요 🔄");
@@ -235,6 +285,114 @@ export default function Home() {
     }
   };
 
+  // 3. 링크 인라인 수정 처리 (Firestore user/anonymous/links/{linkId} 업데이트)
+  const handleUpdateLink = async (
+    linkId: string,
+    categoryId: string,
+    updatedItem: Omit<LinkItem, "id">,
+  ) => {
+    setLoadingText("링크를 수정하는 중이에요...");
+    setIsUpdating(true);
+    try {
+      // 1) Firestore user/anonymous/links/{linkId} 경로에 수정 반영 (merge: true)
+      await updateLink(USER_ID, linkId, categoryId, updatedItem);
+
+      // 2) 최신 링크 목록 재조회 및 즉시 반영
+      const updatedList = await getLinks(USER_ID);
+      applyRemoteLinks(updatedList);
+
+      // 3) 로컬 상태 즉각 동기화 (mock 데이터 및 빠른 반응성 보장)
+      setData((prev) => {
+        const nextCategories = prev.categories.map((cat) => {
+          const hasItem = cat.items.some((it) => it.id === linkId);
+          if (hasItem) {
+            return {
+              ...cat,
+              items: cat.items.map((it) =>
+                it.id === linkId ? { ...updatedItem, id: linkId } : it,
+              ),
+            };
+          }
+          return cat;
+        });
+        const nextData = { ...prev, categories: nextCategories };
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
+        } catch {}
+        return nextData;
+      });
+
+      showToast("링크가 수정되었어요 ✨");
+    } catch (err) {
+      console.error("Firestore 링크 수정 오류:", err);
+      // 네트워크 등 실패 시 로컬 상태라도 업데이트
+      setData((prev) => {
+        const nextCategories = prev.categories.map((cat) => ({
+          ...cat,
+          items: cat.items.map((it) =>
+            it.id === linkId ? { ...updatedItem, id: linkId } : it,
+          ),
+        }));
+        const nextData = { ...prev, categories: nextCategories };
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
+        } catch {}
+        return nextData;
+      });
+      showToast("링크가 수정되었어요 ✨");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // 4. 링크 삭제 확인 처리 (Firestore user/anonymous/links/{linkId} 삭제)
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    const { item } = deleteTarget;
+    setIsDeleting(true);
+
+    try {
+      // 1) Firestore user/anonymous/links/{linkId} 문서 삭제
+      await deleteLink(USER_ID, item.id);
+
+      // 2) 삭제된 ID 기록 (mock 데이터 복구 방지 및 지속성 유지)
+      const nextDeleted = new Set(deletedIds);
+      nextDeleted.add(item.id);
+      setDeletedIds(nextDeleted);
+      try {
+        localStorage.setItem(
+          DELETED_IDS_KEY,
+          JSON.stringify(Array.from(nextDeleted)),
+        );
+      } catch {}
+
+      // 3) 최신 Firestore 목록 조회 및 로컬 상태에서 즉시 제거
+      const updatedList = await getLinks(USER_ID);
+      applyRemoteLinks(updatedList, undefined, nextDeleted);
+
+      setData((prev) => {
+        const nextCategories = prev.categories.map((cat) => ({
+          ...cat,
+          items: cat.items.filter((it) => it.id !== item.id),
+        }));
+        const nextData = { ...prev, categories: nextCategories };
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
+        } catch {}
+        return nextData;
+      });
+
+      showToast("링크가 삭제되었어요 🗑️");
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Firestore 링크 삭제 오류:", err);
+      showToast("링크 삭제에 실패했어요. 다시 시도해 주세요.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F9FAFB] text-[#191F28] flex flex-col justify-between relative">
       <div>
@@ -264,7 +422,7 @@ export default function Home() {
           {/* 프로필 헤더 */}
           <ProfileHeader profile={data.profile} />
 
-          {/* 카테고리별 링크 목록 섹션들 */}
+          {/* 카테고리별 링크 목록 섹션들 (수정 및 삭제 버튼 연동) */}
           <div className="space-y-6">
             {data.categories.map((category) => (
               <CategorySection
@@ -272,6 +430,10 @@ export default function Home() {
                 category={category}
                 onToast={showToast}
                 onAddLink={(catId) => handleOpenAddLink(catId)}
+                onUpdateLink={handleUpdateLink}
+                onDeleteLinkClick={(catId, item) =>
+                  setDeleteTarget({ categoryId: catId, item })
+                }
               />
             ))}
           </div>
@@ -296,7 +458,16 @@ export default function Home() {
         isLoading={isUpdating}
       />
 
-      {/* 5. 시연용 QR 모달 */}
+      {/* 5. 링크 삭제 확인 다이얼로그 모달 */}
+      <DeleteLinkModal
+        isOpen={!!deleteTarget}
+        onClose={() => !isDeleting && setDeleteTarget(null)}
+        itemTitle={deleteTarget?.item.title}
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+      />
+
+      {/* 6. 시연용 QR 모달 */}
       <QrModal
         isOpen={isQrOpen}
         onClose={() => setIsQrOpen(false)}
@@ -304,7 +475,7 @@ export default function Home() {
         onCopyUrl={handleCopyPageUrl}
       />
 
-      {/* 6. TDS 플로팅 토스트 */}
+      {/* 7. TDS 플로팅 토스트 */}
       <Toast message={toastMessage} />
     </div>
   );
