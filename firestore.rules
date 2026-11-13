@@ -1,0 +1,81 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── 인증 헬퍼 함수 ──
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ── 프로필 편집 데이터 검증 함수 (EditProfileModal.tsx 기준) ──
+    // - name: 필수, 문자열, 2~20자
+    // - role: 선택, 문자열, 최대 20자
+    // - bio: 선택, 문자열, 최대 100자
+    // - statusMessage: 선택, 문자열, 최대 40자
+    function isValidProfileMap(p) {
+      return p is map
+        && p.name is string
+        && p.name.size() >= 2 && p.name.size() <= 20
+        && (!('role' in p) || (p.role is string && p.role.size() <= 20))
+        && (!('bio' in p) || (p.bio is string && p.bio.size() <= 100))
+        && (!('statusMessage' in p) || (p.statusMessage is string && p.statusMessage.size() <= 40))
+        && (!('avatarUrl' in p) || p.avatarUrl is string)
+        && (!('email' in p) || p.email is string);
+    }
+
+    // ── 링크 데이터 검증 함수 (validation.ts 기준) ──
+    // - title: 필수, 1~30자
+    // - subtitle: 선택, 최대 60자
+    // - url: 필수, 문자열 (2자 이상)
+    // - categoryId: 필수, 문자열
+    function isValidLink(data) {
+      return data.title is string
+        && data.title.size() >= 1 && data.title.size() <= 30
+        && data.url is string && data.url.size() >= 2
+        && data.categoryId is string
+        && (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 60))
+        && (!('badge' in data) || (
+             data.badge is map
+             && data.badge.text is string
+             && data.badge.text.size() <= 10
+           ));
+    }
+
+    // 1. 유저 루트 문서 (프로필 정보 저장 & /[displayName] 닉네임 검색/중복 확인)
+    match /users/{userId} {
+      // 누구나 개별 조회(get) 및 닉네임 검색/중복확인 쿼리(list) 가능
+      allow get, list: if true;
+
+      // 프로필 생성 및 편집 시: 본인 확인 + profile 필드가 있을 경우 스키마 검증
+      allow create, update: if isOwner(userId)
+        && (!('profile' in request.resource.data) || isValidProfileMap(request.resource.data.profile));
+
+      // 프로필 문서 삭제는 본인만 가능
+      allow delete: if isOwner(userId);
+
+      // 2. 개별 링크 하위 컬렉션 (users/{userId}/links/{linkId})
+      match /links/{linkId} {
+        allow read: if true;
+        allow create, update: if isOwner(userId) && isValidLink(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      // 3. 프로필 하위 컬렉션 (users/{userId}/profile/{docId} 사용 시 대비)
+      match /profile/{docId} {
+        allow read: if true;
+        allow create, update: if isOwner(userId) && isValidProfileMap(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // 기존 호환용 profiles/{profileId} 컬렉션
+    match /profiles/{profileId} {
+      allow read: if true;
+      allow write: if isOwner(profileId);
+    }
+  }
+}
