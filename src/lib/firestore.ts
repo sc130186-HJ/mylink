@@ -22,6 +22,7 @@ import {
   collection,
   query,
   orderBy,
+  where,
   onSnapshot,
   serverTimestamp,
   FirestoreError,
@@ -377,6 +378,33 @@ export function subscribeLinks(
     if (onError) onError(err);
     getLinks(userId).then(onUpdate).catch(() => {});
     return () => {};
+  }
+}
+
+/**
+ * Display Name 중복 여부를 확인합니다.
+ * users 컬렉션에서 profile.name == name 인 문서 중 currentUserId 외 다른 유저가 있으면 true(중복) 반환.
+ * @param name 확인할 Display Name
+ * @param currentUserId 중복 체크에서 제외할 현재 유저 ID
+ * @returns true면 중복, false면 사용 가능
+ */
+export async function checkDisplayNameDuplicate(
+  name: string,
+  currentUserId: string,
+): Promise<boolean> {
+  try {
+    const q = query(
+      collection(db, USER_COLLECTION),
+      where('profile.name', '==', name.trim()),
+    );
+    const snap = await getDocs(q);
+    // 자기 자신 문서는 제외
+    const others = snap.docs.filter((d) => d.id !== currentUserId);
+    return others.length > 0;
+  } catch (err) {
+    console.error('[Firestore] checkDisplayNameDuplicate 오류:', err);
+    // 오류 시 중복이 없는 것으로 처리 (저장 허용)
+    return false;
   }
 }
 

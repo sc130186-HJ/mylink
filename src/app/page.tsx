@@ -10,6 +10,7 @@ import { QrModal } from "@/components/profile/QrModal";
 import { Toast } from "@/components/profile/Toast";
 import { AddLinkModal } from "@/components/profile/AddLinkModal";
 import { DeleteLinkModal } from "@/components/profile/DeleteLinkModal";
+import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { AuthGuide } from "@/components/profile/AuthGuide";
 import { Loader2, Sparkles, LogIn } from "lucide-react";
 import {
@@ -40,6 +41,10 @@ export default function Home() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [loadingText, setLoadingText] = useState("링크 목록을 불러오는 중이에요...");
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+
+  // 프로필 수정 모달 상태
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isProfileSaving, setIsProfileSaving] = useState(false);
 
   // 삭제 확인 모달 대상 링크 상태
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -372,6 +377,23 @@ export default function Home() {
     }
   };
 
+  // 프로필 저장 핸들러
+  const handleSaveProfile = async (updatedProfile: ProfileInfo) => {
+    if (!user) return;
+    setIsProfileSaving(true);
+    try {
+      await saveUserProfile(user.uid, updatedProfile);
+      setData((prev) => ({ ...prev, profile: updatedProfile }));
+      showToast("프로필이 수정되었어요 ✨");
+    } catch (err) {
+      console.error("프로필 저장 오류:", err);
+      showToast("프로필 저장에 실패했어요. 다시 시도해 주세요.");
+      throw err;
+    } finally {
+      setIsProfileSaving(false);
+    }
+  };
+
   // 기본 데이터 초기화
   const handleResetData = async () => {
     if (!user) {
@@ -488,7 +510,11 @@ export default function Home() {
               </div>
 
               {/* 개인화된 유저 프로필 헤더 */}
-              <ProfileHeader profile={data.profile} />
+              <ProfileHeader
+                profile={data.profile}
+                isOwner={true}
+                onEditProfile={() => setIsEditProfileOpen(true)}
+              />
 
               {/* 카테고리별 개인 링크 목록 섹션들 (수정, 삭제, 추가 지원) */}
               <div className="space-y-6">
@@ -567,7 +593,19 @@ export default function Home() {
         onCopyUrl={handleCopyPageUrl}
       />
 
-      {/* 7. TDS 플로팅 토스트 */}
+      {/* 7. 프로필 수정 모달 */}
+      {user && (
+        <EditProfileModal
+          isOpen={isEditProfileOpen}
+          onClose={() => setIsEditProfileOpen(false)}
+          currentProfile={data.profile}
+          currentUserId={user.uid}
+          onSave={handleSaveProfile}
+          isLoading={isProfileSaving}
+        />
+      )}
+
+      {/* 8. TDS 플로팅 토스트 */}
       <Toast message={toastMessage} />
     </div>
   );

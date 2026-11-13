@@ -4,12 +4,17 @@ import React, { useState } from "react";
 import { ProfileInfo } from "@/types/profile";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Pencil } from "lucide-react";
 
 interface ProfileHeaderProps {
   profile: ProfileInfo;
+  /** 프로필 소유자(로그인 유저)인지 여부 — true 일 때만 편집 버튼 노출 */
+  isOwner?: boolean;
+  /** 편집 버튼 클릭 콜백 */
+  onEditProfile?: () => void;
 }
 
-export function ProfileHeader({ profile }: ProfileHeaderProps) {
+export function ProfileHeader({ profile, isOwner = false, onEditProfile }: ProfileHeaderProps) {
   const [imgError, setImgError] = useState(false);
 
   // 이니셜 추출 (한글 이름의 마지막 2글자 또는 영문 2글자)
@@ -18,17 +23,32 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
   return (
     <section className="flex flex-col items-center text-center pt-2 pb-2">
       {/* 아바타 영역 (shadcn/ui Avatar 재사용) */}
-      <Avatar size="xl" online={true}>
-        {profile.avatarUrl && !imgError ? (
-          <AvatarImage
-            src={profile.avatarUrl}
-            alt={profile.name}
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <AvatarFallback>{initials}</AvatarFallback>
+      <div className="relative inline-block">
+        <Avatar size="xl" online={true}>
+          {profile.avatarUrl && !imgError ? (
+            <AvatarImage
+              src={profile.avatarUrl}
+              alt={profile.name}
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <AvatarFallback>{initials}</AvatarFallback>
+          )}
+        </Avatar>
+
+        {/* 편집 버튼 — 소유자일 때만 아바타 우하단에 오버레이 */}
+        {isOwner && onEditProfile && (
+          <button
+            type="button"
+            onClick={onEditProfile}
+            aria-label="프로필 수정"
+            title="프로필 수정"
+            className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-white border-2 border-[#E5E8EB] shadow-md flex items-center justify-center hover:bg-[#E8F3FF] hover:border-[#3182F6] transition-all active:scale-95 cursor-pointer"
+          >
+            <Pencil className="w-3.5 h-3.5 text-[#3182F6]" />
+          </button>
         )}
-      </Avatar>
+      </div>
 
       {/* 이름 및 직무 뱃지 (shadcn/ui Badge 재사용) */}
       <div className="mt-4 flex items-center justify-center gap-2">
