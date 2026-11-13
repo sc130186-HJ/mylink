@@ -1,0 +1,31 @@
+1:"$Sreact.fragment"
+2:"static/chunks/631-f5251ba54e1791d7.js"
+3:"static/chunks/app/layout-96133e2d28e508fc.js"
+4:I[20874,["631","$2","177","$3"],"QueryProvider"]
+5:I[57121,[],""]
+6:I[74581,[],""]
+7:"static/chunks/447-2804906e9bd3b1aa.js"
+8:"static/chunks/app/not-found-ea09b0893944ddec.js"
+9:I[84630,["447","$7","345","$8"],"default"]
+d:I[61304,[],"ClientPageRoot"]
+10:I[90484,[],"OutletBoundary"]
+11:"$Sreact.suspense"
+13:"ViewportBoundary"
+14:I[90484,[],"$13"]
+16:"MetadataBoundary"
+17:I[90484,[],"$16"]
+19:I[27123,[],"default",1]
+:HL["/mylink/_next/static/media/22a5144ee8d83bca-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/mylink/_next/static/css/30b38761ae95d145.css","style"]
+:HL["https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css","style",{"crossOrigin":"anonymous"}]
+b:X
+c:[["children",{"s":"__PAGE__","h":512,"d":{"r":["$","$1","c",{"children":[["$","$Ld",null,{"Component":"$9","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@e","$@f"]}}],null,["$","$L10",null,{"children":["$","$11",null,{"name":"Next.MetadataOutlet","children":"$@12"}]}]]}],"p":false,"v":null}}]]
+a:[["children",{"s":"_not-found","h":512,"d":{"r":["$","$1","c",{"children":[null,["$","$L5",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L6",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}],"p":false,"v":"$b"},"c":"$Qc"}]]
+0:{"P":null,"c":["","_not-found"],"q":"","i":false,"t":{"t":{"s":"","h":528,"d":{"r":["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/mylink/_next/static/css/30b38761ae95d145.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]],["$","html",null,{"lang":"ko","className":"h-full bg-[#F9FAFB] font-sans __variable_c5ffd3","children":[["$","head",null,{"children":["$","link",null,{"rel":"stylesheet","as":"style","crossOrigin":"anonymous","href":"https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"}]}],["$","body",null,{"className":"min-h-full flex flex-col font-sans antialiased text-[#191F28] bg-[#F9FAFB] selection:bg-[#E8F3FF] selection:text-[#3182F6]","children":["$","$L4",null,{"children":["$","$L5",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L6",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[["$","$L9",null,{}],[]],"forbidden":"$undefined","unauthorized":"$undefined"}]}]}]]}]]}],"p":false,"v":null},"c":"$Qa"},"h":{"r":["$","$1","h",{"children":[["$","meta",null,{"name":"robots","content":"noindex"}],["$","$L14",null,{"children":"$L15"}],["$","$L17",null,{"children":[["$","div",null,{"hidden":true,"children":["$","$11",null,{"name":"Next.Metadata","children":"$L18"}]}],null]}],["$","meta",null,{"name":"next-size-adjust","content":""}]]}],"p":false,"v":null}},"m":"$undefined","G":["$19",[]],"S":true,"r":"$undefined","s":"$undefined","a":"$undefined","l":"$undefined","p":"$undefined","d":"$undefined","b":"nkMytkOWG8Gc1ONuA3S0F"}
+b:C
+e:{}
+f:"$c:0:1:d:r:props:children:0:props:serverProvidedParams:params"
+15:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1, maximum-scale=1"}],["$","meta","2",{"name":"theme-color","content":"#FFFFFF"}]]
+1a:I[86869,[],"IconMark"]
+12:null
+18:[["$","title","0",{"children":"신예헌 | MyLink (마이링크)"}],["$","meta","1",{"name":"description","content":"반갑습니다! 나만의 소셜 링크를 모아두는 신예헌의 마이링크 공간입니다 ✨"}],["$","meta","2",{"name":"author","content":"신예헌"}],["$","meta","3",{"name":"keywords","content":"신예헌,MyLink,마이링크,링크트리,포트폴리오,TDS"}],["$","link","4",{"rel":"icon","href":"/mylink/favicon.ico?603d046c9a6fdfbb","type":"image/x-icon","sizes":"16x16"}],["$","$L1a","5",{}]]

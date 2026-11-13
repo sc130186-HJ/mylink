@@ -1,0 +1,6 @@
+:HL["/mylink/_next/static/media/22a5144ee8d83bca-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/mylink/_next/static/css/30b38761ae95d145.css","style"]
+:HL["https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css","style",{"crossOrigin":"anonymous"}]
+2:[["children",{"s":"__PAGE__","h":160}]]
+1:[["children",{"s":"stats","h":96,"c":"$Q2"}]]
+0:{"b":"nkMytkOWG8Gc1ONuA3S0F","t":{"t":{"s":"","h":80,"c":"$Q1"}}}
