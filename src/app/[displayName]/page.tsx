@@ -180,10 +180,10 @@ export default function UserDisplayNamePage() {
 
   const resetLinksMutation = useResetLinksMutation(targetUserId, {
     onSuccess: () => {
-      showToast("기본 템플릿 링크로 초기화되었어요 🔄");
+      showToast("링크 목록을 새로고침했어요 🔄");
     },
     onError: () => {
-      showToast("초기화 중 문제가 발생했어요.");
+      showToast("새로고침 중 문제가 발생했어요.");
     },
   });
 
@@ -324,11 +324,7 @@ export default function UserDisplayNamePage() {
 
   const handleResetData = async () => {
     if (!isOwner || !targetUserId) return;
-    setLoadingText("기본 템플릿으로 초기화하는 중이에요...");
-    setDeletedIds(new Set());
-    try {
-      localStorage.removeItem(`mylink_deleted_${targetUserId}`);
-    } catch {}
+    setLoadingText("링크 목록을 새로고침하는 중이에요...");
     await resetLinksMutation.mutateAsync();
   };
 
@@ -443,23 +439,25 @@ export default function UserDisplayNamePage() {
                     )}
                   </div>
                 ) : (
-                  data.categories.map((category) => (
-                    <CategorySection
-                      key={category.id}
-                      category={category}
-                      onToast={showToast}
-                      onAddLink={
-                        isOwner ? (catId) => handleOpenAddLink(catId) : undefined
-                      }
-                      onUpdateLink={isOwner ? handleUpdateLink : undefined}
-                      onDeleteLinkClick={
-                        isOwner
-                          ? (catId, item) =>
-                              setDeleteTarget({ categoryId: catId, item })
-                          : undefined
-                      }
-                    />
-                  ))
+                  data.categories
+                    .filter((category) => category.items.length > 0)
+                    .map((category) => (
+                      <CategorySection
+                        key={category.id}
+                        category={category}
+                        onToast={showToast}
+                        onAddLink={
+                          isOwner ? (catId) => handleOpenAddLink(catId) : undefined
+                        }
+                        onUpdateLink={isOwner ? handleUpdateLink : undefined}
+                        onDeleteLinkClick={
+                          isOwner
+                            ? (catId, item) =>
+                                setDeleteTarget({ categoryId: catId, item })
+                            : undefined
+                        }
+                      />
+                    ))
                 )}
               </div>
             </div>

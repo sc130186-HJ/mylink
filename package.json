@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
+    "export": "GITHUB_PAGES=true next build --webpack && touch out/.nojekyll",
     "start": "next start",
     "lint": "eslint"
   },

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import mockData from '@/data/mockData.json';
 import { ApiResponse, ProfileData } from '@/types/profile';
 
+export const dynamic = 'force-static';
+
 /**
  * GET /api/profile
  * 마이링크 프로필 및 링크 목록 데이터 조회 Mock API

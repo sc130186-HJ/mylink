@@ -25,13 +25,67 @@ import {
   where,
   onSnapshot,
   serverTimestamp,
+  writeBatch,
   FirestoreError,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { ProfileData, LinkItem, ProfileInfo } from '@/types/profile';
 
 const COLLECTION = 'profiles';
 const USER_COLLECTION = 'users';
+
+/**
+ * 과거 자동 시딩(initUserDefaultLinks)으로 추가되었던 샘플(더미) 링크 시그니처 목록.
+ * 사용자가 직접 추가한 적이 없는 기본 템플릿 링크들을 식별하여 화면에서 숨기고 DB에서 자동 정리합니다.
+ */
+const LEGACY_MOCK_SIGNATURES = new Set([
+  'channels|GitHub|https://github.com|개인 오픈소스 프로젝트 및 1일 1커밋 저장소',
+  'channels|기술 블로그 (Velog)|https://velog.io|프론트엔드 트러블슈팅과 배운 점을 주 1회 연재해요',
+  'channels|LinkedIn|https://linkedin.com|이력서 및 커리어 이력 살펴보기',
+  'projects|마이링크 (MyLink)|https://github.com|토스 디자인 시스템(TDS) 기반의 모바일 퍼스트 링크 관리 서비스',
+  'projects|미니 결제 데모 스토어|https://github.com|Next.js 16과 토스페이먼츠 SDK를 연동한 모던 이커머스 체크아웃',
+  'projects|DevLens 북마크 도구|https://github.com|개발자를 위한 웹 스니펫 및 기술 문서 아카이빙 크롬 익스텐션',
+  'articles|Next.js 16 App Router에서 Server Actions 안전하게 다루기|https://velog.io|낙관적 업데이트(Optimistic Update)와 에러 롤백 패턴 정리',
+  'articles|토스 디자인 시스템(TDS) 인터랙션을 웹 프론트엔드에 녹여내기|https://velog.io|미세한 스케일 다운과 부드러운 햅틱 감성을 CSS로 구현한 여정',
+  'articles|CSS Container Queries로 진짜 반응형 컴포넌트 만들기|https://velog.io|뷰포트 미디어 쿼리의 한계를 극복하는 현대적 반응형 스타일링 기법',
+  'contacts|이메일 보내기|mailto:dev.jieun.lee@example.com|dev.jieun.lee@example.com',
+  'contacts|카카오톡 1:1 오픈채팅|https://open.kakao.com|가벼운 질문이나 커피챗은 편하게 톡으로 남겨주세요',
+]);
+
+function isLegacyMockLink(data: Record<string, unknown>): boolean {
+  if (data.isUserCreated === true) return false;
+  const categoryId = (data.categoryId as string) || 'channels';
+  const title = (data.title as string) || '';
+  const url = (data.url as string) || '';
+  const subtitle = (data.subtitle as string) || '';
+  return LEGACY_MOCK_SIGNATURES.has(`${categoryId}|${title}|${url}|${subtitle}`);
+}
+
+const purgingDocIds = new Set<string>();
+
+async function purgeLegacyMockLinks(userId: string, docIds: string[]): Promise<void> {
+  if (!docIds.length) return;
+  if (!auth.currentUser || auth.currentUser.uid !== userId) return;
+
+  const targetIds = docIds.filter((id) => !purgingDocIds.has(id));
+  if (!targetIds.length) return;
+  targetIds.forEach((id) => purgingDocIds.add(id));
+
+  try {
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < targetIds.length; i += CHUNK_SIZE) {
+      const chunk = targetIds.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach((linkId) => {
+        batch.delete(doc(db, USER_COLLECTION, userId, 'links', linkId));
+      });
+      await batch.commit();
+    }
+  } catch (err) {
+    targetIds.forEach((id) => purgingDocIds.delete(id));
+    console.warn('[Firestore] 자동 생성된 샘플 링크 정리 중 오류:', err);
+  }
+}
 
 /** users/{userId}/links 경로의 컬렉션 ref */
 export const linksRef = (userId = 'anonymous') =>
@@ -242,6 +296,7 @@ export async function addLink(
     // undefined 값 제거 (Firestore는 undefined 필드 전달 시 에러 발생)
     const cleanItem: Record<string, unknown> = {
       categoryId,
+      isUserCreated: true,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -277,6 +332,7 @@ export async function updateLink(
     const docRef = doc(db, USER_COLLECTION, userId, 'links', linkId);
     const cleanItem: Record<string, unknown> = {
       categoryId,
+      isUserCreated: true,
       updatedAt: serverTimestamp(),
     };
     Object.entries(item).forEach(([key, value]) => {
@@ -324,12 +380,19 @@ export async function getLinks(
   try {
     const q = query(linksRef(userId), orderBy('createdAt', 'desc'));
     const snap = await getDocs(q);
-    return snap.docs.map((d) => {
+    const legacyIds: string[] = [];
+    const results: FirestoreLinkResult[] = [];
+
+    for (const d of snap.docs) {
       const data = d.data();
+      if (isLegacyMockLink(data)) {
+        legacyIds.push(d.id);
+        continue;
+      }
       const categoryId = (data.categoryId as string) || 'channels';
       const createdAt = data.createdAt;
       const updatedAt = data.updatedAt;
-      return {
+      results.push({
         categoryId,
         createdAt,
         updatedAt,
@@ -343,18 +406,31 @@ export async function getLinks(
           isCopyAction: data.isCopyAction,
           updatedAt: formatToIsoString(updatedAt),
         } as LinkItem,
-      };
-    });
+      });
+    }
+
+    if (legacyIds.length > 0) {
+      void purgeLegacyMockLinks(userId, legacyIds);
+    }
+
+    return results;
   } catch (err) {
     console.warn('[Firestore] getLinks orderBy 쿼리 실패, 메모리 정렬 폴백 진행:', err);
     try {
       const snap = await getDocs(linksRef(userId));
-      const list: FirestoreLinkResult[] = snap.docs.map((d) => {
+      const legacyIds: string[] = [];
+      const list: FirestoreLinkResult[] = [];
+
+      for (const d of snap.docs) {
         const data = d.data();
+        if (isLegacyMockLink(data)) {
+          legacyIds.push(d.id);
+          continue;
+        }
         const categoryId = (data.categoryId as string) || 'channels';
         const createdAt = data.createdAt;
         const updatedAt = data.updatedAt;
-        return {
+        list.push({
           categoryId,
           createdAt,
           updatedAt,
@@ -368,8 +444,12 @@ export async function getLinks(
             isCopyAction: data.isCopyAction,
             updatedAt: formatToIsoString(updatedAt),
           } as LinkItem,
-        };
-      });
+        });
+      }
+
+      if (legacyIds.length > 0) {
+        void purgeLegacyMockLinks(userId, legacyIds);
+      }
 
       list.sort((a, b) => {
         const tA = getTimestampValue(a.createdAt);
@@ -386,23 +466,14 @@ export async function getLinks(
 }
 
 /**
- * 신규 유저에게 기본 링크 템플릿을 생성해주는 헬퍼
+ * 기본 링크 템플릿 자동 생성 비활성화 (사용자가 직접 추가한 링크만 표시)
  */
 export async function initUserDefaultLinks(
-  userId: string,
-  categories: { id: string; items: LinkItem[] }[],
+  _userId: string,
+  _categories: { id: string; items: LinkItem[] }[],
 ): Promise<void> {
-  try {
-    for (const cat of categories) {
-      for (const item of cat.items) {
-        const { id, ...itemWithoutId } = item;
-        void id;
-        await addLink(userId, cat.id, itemWithoutId);
-      }
-    }
-  } catch (err) {
-    console.error('[Firestore] initUserDefaultLinks 오류:', err);
-  }
+  void _userId;
+  void _categories;
 }
 
 /**
@@ -418,12 +489,19 @@ export function subscribeLinks(
     return onSnapshot(
       q,
       (snapshot) => {
-        const list: FirestoreLinkResult[] = snapshot.docs.map((d) => {
+        const legacyIds: string[] = [];
+        const list: FirestoreLinkResult[] = [];
+
+        for (const d of snapshot.docs) {
           const data = d.data();
+          if (isLegacyMockLink(data)) {
+            legacyIds.push(d.id);
+            continue;
+          }
           const categoryId = (data.categoryId as string) || 'channels';
           const createdAt = data.createdAt;
           const updatedAt = data.updatedAt;
-          return {
+          list.push({
             categoryId,
             createdAt,
             updatedAt,
@@ -437,8 +515,13 @@ export function subscribeLinks(
               isCopyAction: data.isCopyAction,
               updatedAt: formatToIsoString(updatedAt),
             } as LinkItem,
-          };
-        });
+          });
+        }
+
+        if (legacyIds.length > 0) {
+          void purgeLegacyMockLinks(userId, legacyIds);
+        }
+
         onUpdate(list);
       },
       (error) => {

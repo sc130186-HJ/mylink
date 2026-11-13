@@ -193,14 +193,14 @@ export function TopBar({
                 </Button>
               )}
 
-              {/* 기본 템플릿 초기화 버튼 */}
+              {/* 링크 목록 새로고침 버튼 */}
               {onReset && (
                 <Button
                   variant="icon"
                   size="icon-m"
                   onClick={onReset}
-                  title="기본 템플릿으로 초기화"
-                  aria-label="데이터 초기화"
+                  title="링크 목록 새로고침"
+                  aria-label="링크 목록 새로고침"
                   className="w-8 h-8"
                 >
                   <RotateCcw

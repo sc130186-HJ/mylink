@@ -11,143 +11,25 @@
       "id": "channels",
       "title": "주요 채널",
       "description": "저의 개발 활동과 일상을 기록하는 공간이에요.",
-      "items": [
-        {
-          "id": "github",
-          "title": "GitHub",
-          "subtitle": "개인 오픈소스 프로젝트 및 1일 1커밋 저장소",
-          "url": "https://github.com",
-          "icon": "github",
-          "badge": {
-            "text": "1.2k Contributions",
-            "variant": "grey"
-          }
-        },
-        {
-          "id": "velog",
-          "title": "기술 블로그 (Velog)",
-          "subtitle": "프론트엔드 트러블슈팅과 배운 점을 주 1회 연재해요",
-          "url": "https://velog.io",
-          "icon": "velog",
-          "badge": {
-            "text": "주간 연재",
-            "variant": "blue"
-          }
-        },
-        {
-          "id": "linkedin",
-          "title": "LinkedIn",
-          "subtitle": "이력서 및 커리어 이력 살펴보기",
-          "url": "https://linkedin.com",
-          "icon": "linkedin"
-        }
-      ]
+      "items": []
     },
     {
       "id": "projects",
       "title": "대표 프로젝트",
       "description": "직접 설계하고 배포한 웹 서비스 데모예요.",
-      "items": [
-        {
-          "id": "project-mylink",
-          "title": "마이링크 (MyLink)",
-          "subtitle": "토스 디자인 시스템(TDS) 기반의 모바일 퍼스트 링크 관리 서비스",
-          "url": "https://github.com",
-          "icon": "project",
-          "badge": {
-            "text": "HOT",
-            "variant": "red"
-          }
-        },
-        {
-          "id": "project-tosspay",
-          "title": "미니 결제 데모 스토어",
-          "subtitle": "Next.js 16과 토스페이먼츠 SDK를 연동한 모던 이커머스 체크아웃",
-          "url": "https://github.com",
-          "icon": "project",
-          "badge": {
-            "text": "NEW",
-            "variant": "green"
-          }
-        },
-        {
-          "id": "project-devlens",
-          "title": "DevLens 북마크 도구",
-          "subtitle": "개발자를 위한 웹 스니펫 및 기술 문서 아카이빙 크롬 익스텐션",
-          "url": "https://github.com",
-          "icon": "project",
-          "badge": {
-            "text": "v1.2.0",
-            "variant": "grey"
-          }
-        }
-      ]
+      "items": []
     },
     {
       "id": "articles",
       "title": "추천 글 & 아티클",
       "description": "동료 개발자들에게 가장 좋은 피드백을 받은 아티클 모음이에요.",
-      "items": [
-        {
-          "id": "article-1",
-          "title": "Next.js 16 App Router에서 Server Actions 안전하게 다루기",
-          "subtitle": "낙관적 업데이트(Optimistic Update)와 에러 롤백 패턴 정리",
-          "url": "https://velog.io",
-          "icon": "link",
-          "badge": {
-            "text": "조회수 1.5k",
-            "variant": "yellow"
-          }
-        },
-        {
-          "id": "article-2",
-          "title": "토스 디자인 시스템(TDS) 인터랙션을 웹 프론트엔드에 녹여내기",
-          "subtitle": "미세한 스케일 다운과 부드러운 햅틱 감성을 CSS로 구현한 여정",
-          "url": "https://velog.io",
-          "icon": "link",
-          "badge": {
-            "text": "추천 아티클",
-            "variant": "blue"
-          }
-        },
-        {
-          "id": "article-3",
-          "title": "CSS Container Queries로 진짜 반응형 컴포넌트 만들기",
-          "subtitle": "뷰포트 미디어 쿼리의 한계를 극복하는 현대적 반응형 스타일링 기법",
-          "url": "https://velog.io",
-          "icon": "link"
-        }
-      ]
+      "items": []
     },
     {
       "id": "contacts",
       "title": "연락처 & 커피챗",
       "description": "궁금한 점이 있거나 협업 제안은 언제든 환영해요.",
-      "items": [
-        {
-          "id": "contact-email",
-          "title": "이메일 보내기",
-          "subtitle": "dev.jieun.lee@example.com",
-          "url": "mailto:dev.jieun.lee@example.com",
-          "icon": "email",
-          "isCopyAction": true,
-          "badge": {
-            "text": "원클릭 복사",
-            "variant": "blue"
-          }
-        },
-        {
-          "id": "contact-openchat",
-          "title": "카카오톡 1:1 오픈채팅",
-          "subtitle": "가벼운 질문이나 커피챗은 편하게 톡으로 남겨주세요",
-          "url": "https://open.kakao.com",
-          "icon": "link",
-          "badge": {
-            "text": "응답 빠름",
-            "variant": "green"
-          }
-        }
-      ]
+      "items": []
     }
   ],
   "footer": {

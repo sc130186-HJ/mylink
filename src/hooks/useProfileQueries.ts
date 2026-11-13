@@ -16,12 +16,13 @@ import {
   addLink,
   updateLink,
   deleteLink,
-  initUserDefaultLinks,
   subscribeLinks,
   FirestoreLinkResult,
   UserSearchResult,
 } from "@/lib/firestore";
 import type { User } from "@/lib/auth";
+
+export const DEFAULT_OWNER_UID = "YtJRljKAUDbC5v20Q6ydRffbHRl1";
 
 export const profileKeys = {
   all: ["profile"] as const,
@@ -52,17 +53,19 @@ export function useUserByDisplayNameQuery(displayName: string) {
 
 /**
  * 1. 유저 프로필 조회 Query
- * - Firestore에 프로필이 없으면 기본 프로필 생성 후 반환
+ * - 로그인 상태면 해당 유저 프로필 조회/초기화
+ * - 비로그인 상태면 기본 소유자(DEFAULT_OWNER_UID)의 공개 프로필을 Firestore에서 조회
  */
 export function useUserProfileQuery(user: User | null) {
-  const uid = user?.uid;
+  const uid = user?.uid || DEFAULT_OWNER_UID;
 
   return useQuery({
-    queryKey: profileKeys.userProfile(uid || "anonymous"),
-    enabled: !!user && !!uid,
+    queryKey: profileKeys.userProfile(uid),
+    enabled: !!uid,
     queryFn: async (): Promise<ProfileInfo> => {
-      if (!user || !uid) {
-        return (defaultData as ProfileData).profile;
+      if (!user) {
+        const publicProfile = await getUserProfile(DEFAULT_OWNER_UID);
+        return publicProfile || (defaultData as ProfileData).profile;
       }
 
       const userStorageKey = `mylink_profile_${uid}`;
@@ -180,14 +183,14 @@ export function useUpdateProfileMutation(
 
 /**
  * 3. 유저 링크 목록 조회 Query + 실시간 구독 동기화
- * - 최초 조회 시 링크가 하나도 없으면 기본 템플릿 시딩 (seedIfEmpty 옵션이 true일 때)
+ * - 사용자가 직접 추가한 링크만 표시하며, 임의의 기본 템플릿 링크는 자동 생성하지 않음
  * - Firestore onSnapshot 실시간 업데이트를 QueryClient 캐시에 반영
  */
 export function useUserLinksQuery(
   uid: string | undefined,
-  options?: { seedIfEmpty?: boolean }
+  _options?: { seedIfEmpty?: boolean }
 ) {
-  const seedIfEmpty = options?.seedIfEmpty ?? true;
+  void _options;
   const queryClient = useQueryClient();
   const queryKey = profileKeys.userLinks(uid || "anonymous");
 
@@ -196,15 +199,7 @@ export function useUserLinksQuery(
     enabled: !!uid,
     queryFn: async (): Promise<FirestoreLinkResult[]> => {
       if (!uid) return [];
-      const initialLinks = await getLinks(uid);
-      if (initialLinks.length === 0 && seedIfEmpty) {
-        await initUserDefaultLinks(
-          uid,
-          (defaultData as ProfileData).categories
-        );
-        return await getLinks(uid);
-      }
-      return initialLinks;
+      return await getLinks(uid);
     },
   });
 
@@ -328,7 +323,7 @@ export function useDeleteLinkMutation(
 }
 
 /**
- * 7. 기본 템플릿으로 초기화 Mutation
+ * 7. 링크 목록 새로고침 Mutation (기본 템플릿 자동 추가 제거)
  */
 export function useResetLinksMutation(
   uid: string | undefined,
@@ -343,10 +338,6 @@ export function useResetLinksMutation(
   return useMutation({
     mutationFn: async () => {
       if (!uid) throw new Error("로그인이 필요합니다.");
-      await initUserDefaultLinks(
-        uid,
-        (defaultData as ProfileData).categories
-      );
       return await getLinks(uid);
     },
     onSuccess: (updatedList) => {

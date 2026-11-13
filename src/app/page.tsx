@@ -11,11 +11,11 @@ import { Toast } from "@/components/profile/Toast";
 import { AddLinkModal } from "@/components/profile/AddLinkModal";
 import { DeleteLinkModal } from "@/components/profile/DeleteLinkModal";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
-import { AuthGuide } from "@/components/profile/AuthGuide";
 import { Loader2, Sparkles, LogIn, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { loginWithGoogle, logout, onAuthChange, User } from "@/lib/auth";
 import {
+  DEFAULT_OWNER_UID,
   useUserProfileQuery,
   useUpdateProfileMutation,
   useUserLinksQuery,
@@ -103,8 +103,9 @@ export default function Home() {
   // ─────────────────────────────────────────────
   // TanStack Query: 데이터 조회 (Queries)
   // ─────────────────────────────────────────────
+  const activeUid = user?.uid || DEFAULT_OWNER_UID;
   const profileQuery = useUserProfileQuery(user);
-  const linksQuery = useUserLinksQuery(user?.uid);
+  const linksQuery = useUserLinksQuery(activeUid);
 
   // ─────────────────────────────────────────────
   // TanStack Query: 데이터 변경 (Mutations)
@@ -166,13 +167,13 @@ export default function Home() {
     },
   });
 
-  // 기본 템플릿 초기화
+  // 링크 목록 새로고침
   const resetLinksMutation = useResetLinksMutation(user?.uid, {
     onSuccess: () => {
-      showToast("기본 템플릿 링크로 초기화되었어요 🔄");
+      showToast("링크 목록을 새로고침했어요 🔄");
     },
     onError: () => {
-      showToast("초기화 중 문제가 발생했어요.");
+      showToast("새로고침 중 문제가 발생했어요.");
     },
   });
 
@@ -182,16 +183,12 @@ export default function Home() {
   const data = useMemo<ProfileData>(() => {
     const baseMock = defaultData as ProfileData;
 
-    if (!user) {
-      return baseMock;
-    }
-
     const activeProfile: ProfileInfo = profileQuery.data || {
-      name: user.displayName || "내 링크",
+      name: user?.displayName || "신예헌",
       role: "크리에이터",
       bio: "반갑습니다! 나만의 소셜 링크를 모아두는 공간입니다 ✨",
-      avatarUrl: user.photoURL || undefined,
-      email: user.email || undefined,
+      avatarUrl: user?.photoURL || undefined,
+      email: user?.email || undefined,
       statusMessage: "온라인 · 환영합니다!",
     };
 
@@ -218,12 +215,14 @@ export default function Home() {
     return {
       profile: activeProfile,
       categories: updatedCategories,
-      footer: baseMock.footer,
+      footer: {
+        ...baseMock.footer,
+        copyright: `© ${new Date().getFullYear()} ${activeProfile.name}. All rights reserved.`,
+      },
     };
   }, [user, profileQuery.data, linksQuery.data, deletedIds]);
 
-  const isLoading =
-    !!user && (profileQuery.isLoading || linksQuery.isLoading);
+  const isLoading = profileQuery.isLoading || linksQuery.isLoading;
   const isUpdating =
     addLinkMutation.isPending ||
     updateLinkMutation.isPending ||
@@ -321,19 +320,13 @@ export default function Home() {
     updateProfileMutation.mutate(updatedProfile);
   };
 
-  // 기본 데이터 초기화
+  // 링크 목록 새로고침
   const handleResetData = async () => {
     if (!user) {
-      showToast("기본 예시 데이터로 초기화되었어요 🔄");
       return;
     }
 
-    setLoadingText("기본 템플릿으로 초기화하는 중이에요...");
-    setDeletedIds(new Set());
-    try {
-      localStorage.removeItem(`mylink_deleted_${user.uid}`);
-    } catch {}
-
+    setLoadingText("링크 목록을 새로고침하는 중이에요...");
     await resetLinksMutation.mutateAsync();
   };
 
@@ -371,98 +364,57 @@ export default function Home() {
 
         {/* 2. 메인 컨텐츠 영역 (모바일 최적화 뷰포트 max-w-md) */}
         <main className="max-w-md mx-auto px-4 py-6 space-y-6">
-          {/* A. 로그인 여부에 따른 분기 화면 */}
-          {!user ? (
-            /* 비로그인 상태 화면: 설명 문구 및 로그인 유도 배너 */
-            <div className="space-y-6 animate-in fade-in duration-300">
-              {/* 상단 설명 안내 컴포넌트 */}
-              <AuthGuide onLogin={handleGoogleLogin} isLoggingIn={isLoggingIn} />
-
-              {/* 둘러보기 안내 배너 */}
-              <div className="flex items-center justify-between px-2 pt-2 text-xs font-semibold text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-                  미리보기 화면 (로그인 후 내 링크로 변경)
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* 유저 Firestore 경로 및 개인화 뱃지 */}
+            <div className="flex items-center justify-between gap-2 text-xs text-slate-500 bg-blue-50/80 border border-blue-100 rounded-2xl py-2 px-3.5">
+              <div className="flex items-center gap-1.5 truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                <span className="truncate font-medium text-slate-700">
+                  {data.profile.name || user?.displayName || "신예헌"} 님의 마이링크
                 </span>
-                <button
-                  type="button"
-                  onClick={handleGoogleLogin}
-                  className="text-blue-600 hover:underline flex items-center gap-1"
-                >
-                  <LogIn className="w-3 h-3" />
-                  로그인하기
-                </button>
               </div>
-
-              {/* 샘플 프로필 미리보기 */}
-              <div className="opacity-75 pointer-events-none select-none filter blur-[0.3px] transition-all">
-                <ProfileHeader profile={data.profile} />
-                <div className="space-y-6 mt-4">
-                  {data.categories.map((category) => (
-                    <CategorySection
-                      key={category.id}
-                      category={category}
-                      onToast={showToast}
-                      onAddLink={() => handleOpenAddLink()}
-                      onUpdateLink={handleUpdateLink}
-                      onDeleteLinkClick={() => {}}
-                    />
-                  ))}
-                </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="font-mono text-[10px] bg-white text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full">
+                  users/{activeUid.slice(0, 6)}.../links
+                </span>
+                {data.profile.name && (
+                  <Link
+                    href={`/${encodeURIComponent(data.profile.name.trim())}`}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#3182F6] bg-white border border-blue-200 hover:bg-[#E8F3FF] px-2 py-0.5 rounded-full transition-colors"
+                    title="내 개인 페이지로 이동"
+                  >
+                    <span>내 페이지</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </Link>
+                )}
               </div>
             </div>
-          ) : (
-            /* B. 로그인 완료 상태: Firestore(users/{user.uid}/links) 개인화 화면 */
-            <div className="space-y-6 animate-in fade-in duration-300">
-              {/* 유저 Firestore 경로 및 개인화 뱃지 */}
-              <div className="flex items-center justify-between gap-2 text-xs text-slate-500 bg-blue-50/80 border border-blue-100 rounded-2xl py-2 px-3.5">
-                <div className="flex items-center gap-1.5 truncate">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                  <span className="truncate font-medium text-slate-700">
-                    {data.profile.name || user.displayName || user.email} 님의 마이링크
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="font-mono text-[10px] bg-white text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full">
-                    users/{user.uid.slice(0, 6)}.../links
-                  </span>
-                  {(data.profile.name || user.displayName) && (
-                    <Link
-                      href={`/${encodeURIComponent(
-                        (data.profile.name || user.displayName || "").trim()
-                      )}`}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#3182F6] bg-white border border-blue-200 hover:bg-[#E8F3FF] px-2 py-0.5 rounded-full transition-colors"
-                      title="내 개인 페이지로 이동"
-                    >
-                      <span>내 페이지</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </Link>
-                  )}
-                </div>
-              </div>
 
-              {/* 개인화된 유저 프로필 헤더 */}
-              <ProfileHeader
-                profile={data.profile}
-                isOwner={true}
-                onEditProfile={() => setIsEditProfileOpen(true)}
-                showMyPageButton={true}
-              />
+            {/* 개인화된 유저 프로필 헤더 */}
+            <ProfileHeader
+              profile={data.profile}
+              isOwner={!!user}
+              onEditProfile={user ? () => setIsEditProfileOpen(true) : undefined}
+              showMyPageButton={!!user}
+            />
 
-              {/* 카테고리별 개인 링크 목록 섹션들 (수정, 삭제, 추가 지원) */}
-              <div className="space-y-6">
-                {data.categories.every((c) => c.items.length === 0) ? (
-                  /* 등록된 링크가 없을 때 Empty State 안내 */
-                  <div className="bg-white rounded-3xl p-8 border border-slate-100 text-center space-y-3 shadow-xs">
-                    <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-500 mx-auto flex items-center justify-center">
-                      <Sparkles className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-base font-bold text-[#191F28]">
-                      아직 등록된 링크가 없어요
-                    </h3>
-                    <p className="text-xs text-[#8B95A1] max-w-xs mx-auto leading-relaxed">
-                      상단의 [추가] 버튼을 누르거나 아래 버튼으로 내 GitHub, 블로그, SNS 링크를 등록해보세요!
-                    </p>
+            {/* 카테고리별 개인 링크 목록 섹션들 (로그인 시 수정, 삭제, 추가 지원) */}
+            <div className="space-y-6">
+              {data.categories.every((c) => c.items.length === 0) ? (
+                /* 등록된 링크가 없을 때 Empty State 안내 */
+                <div className="bg-white rounded-3xl p-8 border border-slate-100 text-center space-y-3 shadow-xs">
+                  <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-500 mx-auto flex items-center justify-center">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-bold text-[#191F28]">
+                    아직 등록된 링크가 없어요
+                  </h3>
+                  <p className="text-xs text-[#8B95A1] max-w-xs mx-auto leading-relaxed">
+                    {user
+                      ? "상단의 [추가] 버튼을 누르거나 아래 버튼으로 내 GitHub, 블로그, SNS 링크를 등록해보세요!"
+                      : `${data.profile.name} 님이 아직 등록한 링크가 없어요. 본인이시라면 우측 상단 Google 로그인 후 링크를 추가해보세요!`}
+                  </p>
+                  {user ? (
                     <button
                       type="button"
                       onClick={() => handleOpenAddLink()}
@@ -470,24 +422,41 @@ export default function Home() {
                     >
                       첫 링크 등록하기
                     </button>
-                  </div>
-                ) : (
-                  data.categories.map((category) => (
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isLoggingIn}
+                      onClick={handleGoogleLogin}
+                      className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#3182F6] hover:bg-[#2272EB] text-white text-xs font-semibold transition active:scale-95 cursor-pointer shadow-sm"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>Google 로그인하고 링크 관리하기</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                data.categories
+                  .filter((category) => category.items.length > 0)
+                  .map((category) => (
                     <CategorySection
                       key={category.id}
                       category={category}
                       onToast={showToast}
-                      onAddLink={(catId) => handleOpenAddLink(catId)}
-                      onUpdateLink={handleUpdateLink}
-                      onDeleteLinkClick={(catId, item) =>
-                        setDeleteTarget({ categoryId: catId, item })
+                      onAddLink={
+                        user ? (catId) => handleOpenAddLink(catId) : undefined
+                      }
+                      onUpdateLink={user ? handleUpdateLink : undefined}
+                      onDeleteLinkClick={
+                        user
+                          ? (catId, item) =>
+                              setDeleteTarget({ categoryId: catId, item })
+                          : undefined
                       }
                     />
                   ))
-                )}
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </main>
       </div>
 
