@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useMutation } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -43,7 +44,7 @@ interface EditProfileModalProps {
   onClose: () => void;
   currentProfile: ProfileInfo;
   currentUserId: string;
-  onSave: (updatedProfile: ProfileInfo) => Promise<void>;
+  onSave: (updatedProfile: ProfileInfo) => Promise<void> | void;
   isLoading?: boolean;
 }
 
@@ -54,7 +55,7 @@ interface EditProfileFormProps {
   currentProfile: ProfileInfo;
   currentUserId: string;
   onClose: () => void;
-  onSave: (updatedProfile: ProfileInfo) => Promise<void>;
+  onSave: (updatedProfile: ProfileInfo) => Promise<void> | void;
   isLoading?: boolean;
 }
 
@@ -151,24 +152,29 @@ function EditProfileForm({
     setErrors((prev) => ({ ...prev, statusMessage: validateStatus(val) }));
   };
 
-  // ── 중복 확인 ──
-  const handleCheckDuplicate = async () => {
+  // ── 중복 확인 (TanStack Query useMutation) ──
+  const duplicateCheckMutation = useMutation({
+    mutationFn: (targetName: string) =>
+      checkDisplayNameDuplicate(targetName, currentUserId),
+    onMutate: () => {
+      setDuplicateStatus("checking");
+    },
+    onSuccess: (isDuplicate) => {
+      setDuplicateStatus(isDuplicate ? "taken" : "available");
+    },
+    onError: () => {
+      setDuplicateStatus("idle");
+    },
+  });
+
+  const handleCheckDuplicate = () => {
     const nameError = validateName(name);
     if (nameError) {
       setErrors((prev) => ({ ...prev, name: nameError }));
       nameInputRef.current?.focus();
       return;
     }
-    setDuplicateStatus("checking");
-    try {
-      const isDuplicate = await checkDisplayNameDuplicate(
-        name.trim(),
-        currentUserId
-      );
-      setDuplicateStatus(isDuplicate ? "taken" : "available");
-    } catch {
-      setDuplicateStatus("idle");
-    }
+    duplicateCheckMutation.mutate(name.trim());
   };
 
   // ── 저장하기 ──

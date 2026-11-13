@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -35,7 +36,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col font-sans antialiased text-[#191F28] bg-[#F9FAFB] selection:bg-[#E8F3FF] selection:text-[#3182F6]">
-        {children}
+        <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
   );
