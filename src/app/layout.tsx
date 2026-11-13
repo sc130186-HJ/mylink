@@ -14,10 +14,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "이지은 | MyLink (마이링크)",
-  description: "사용자 경험과 깔끔한 인터랙션에 진심인 프론트엔드 개발자 이지은의 링크 모음이에요.",
-  keywords: ["이지은", "MyLink", "마이링크", "링크트리", "프론트엔드", "포트폴리오", "TDS"],
-  authors: [{ name: "이지은" }],
+  title: "신예헌 | MyLink (마이링크)",
+  description: "반갑습니다! 나만의 소셜 링크를 모아두는 신예헌의 마이링크 공간입니다 ✨",
+  keywords: ["신예헌", "MyLink", "마이링크", "링크트리", "포트폴리오", "TDS"],
+  authors: [{ name: "신예헌" }],
 };
 
 export default function RootLayout({

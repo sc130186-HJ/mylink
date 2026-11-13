@@ -1,10 +1,9 @@
 {
   "profile": {
-    "name": "이지은",
-    "role": "Frontend Developer",
-    "bio": "사용자 경험과 깔끔한 인터랙션에 진심인 프론트엔드 개발자입니다.\n작은 디테일이 주는 직관적인 사용자 가치를 고민해요.",
-    "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=256&h=256&fit=crop&crop=faces&q=80",
-    "statusMessage": "새로운 기회와 사이드 프로젝트 협업에 열려있어요 ✨"
+    "name": "신예헌",
+    "role": "크리에이터",
+    "bio": "반갑습니다! 나만의 소셜 링크를 모아두는 공간입니다 ✨",
+    "statusMessage": "온라인 · 환영합니다!"
   },
   "categories": [
     {
@@ -33,7 +32,7 @@
     }
   ],
   "footer": {
-    "copyright": "© 2026 Jieun Lee. All rights reserved.",
+    "copyright": "© 2026 신예헌. All rights reserved.",
     "poweredBy": "Powered by MyLink & Toss Design System"
   }
 }
