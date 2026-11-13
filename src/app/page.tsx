@@ -12,7 +12,8 @@ import { AddLinkModal } from "@/components/profile/AddLinkModal";
 import { DeleteLinkModal } from "@/components/profile/DeleteLinkModal";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { AuthGuide } from "@/components/profile/AuthGuide";
-import { Loader2, Sparkles, LogIn } from "lucide-react";
+import { Loader2, Sparkles, LogIn, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { loginWithGoogle, logout, onAuthChange, User } from "@/lib/auth";
 import {
   useUserProfileQuery,
@@ -78,7 +79,9 @@ export default function Home() {
   // 2. 로그인 유저 변경 시 로컬스토리지 삭제 목록 복원
   useEffect(() => {
     if (!user) {
-      setDeletedIds(new Set());
+      queueMicrotask(() => {
+        setDeletedIds(new Set());
+      });
       return;
     }
     const userDeletedKey = `mylink_deleted_${user.uid}`;
@@ -92,7 +95,9 @@ export default function Home() {
         }
       }
     } catch {}
-    setDeletedIds(activeDeleted);
+    queueMicrotask(() => {
+      setDeletedIds(activeDeleted);
+    });
   }, [user]);
 
   // ─────────────────────────────────────────────
@@ -346,6 +351,8 @@ export default function Home() {
           onCopyPageUrl={handleCopyPageUrl}
           onOpenAddLink={user ? () => handleOpenAddLink() : undefined}
           isSyncing={isLoading || isUpdating || updateProfileMutation.isPending}
+          profileName={user ? data.profile.name : undefined}
+          onEditProfile={user ? () => setIsEditProfileOpen(true) : undefined}
         />
 
         {/* 1-1. 업데이트/동기화 로딩 인디케이터 (상단 플로팅 캡슐) */}
@@ -408,16 +415,30 @@ export default function Home() {
             /* B. 로그인 완료 상태: Firestore(users/{user.uid}/links) 개인화 화면 */
             <div className="space-y-6 animate-in fade-in duration-300">
               {/* 유저 Firestore 경로 및 개인화 뱃지 */}
-              <div className="flex items-center justify-between px-2 text-xs text-slate-500 bg-blue-50/80 border border-blue-100 rounded-2xl py-2 px-3.5">
+              <div className="flex items-center justify-between gap-2 text-xs text-slate-500 bg-blue-50/80 border border-blue-100 rounded-2xl py-2 px-3.5">
                 <div className="flex items-center gap-1.5 truncate">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
                   <span className="truncate font-medium text-slate-700">
                     {data.profile.name || user.displayName || user.email} 님의 마이링크
                   </span>
                 </div>
-                <span className="font-mono text-[10px] bg-white text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full shrink-0">
-                  users/{user.uid.slice(0, 6)}.../links
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="font-mono text-[10px] bg-white text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full">
+                    users/{user.uid.slice(0, 6)}.../links
+                  </span>
+                  {(data.profile.name || user.displayName) && (
+                    <Link
+                      href={`/${encodeURIComponent(
+                        (data.profile.name || user.displayName || "").trim()
+                      )}`}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#3182F6] bg-white border border-blue-200 hover:bg-[#E8F3FF] px-2 py-0.5 rounded-full transition-colors"
+                      title="내 개인 페이지로 이동"
+                    >
+                      <span>내 페이지</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </Link>
+                  )}
+                </div>
               </div>
 
               {/* 개인화된 유저 프로필 헤더 */}
@@ -425,6 +446,7 @@ export default function Home() {
                 profile={data.profile}
                 isOwner={true}
                 onEditProfile={() => setIsEditProfileOpen(true)}
+                showMyPageButton={true}
               />
 
               {/* 카테고리별 개인 링크 목록 섹션들 (수정, 삭제, 추가 지원) */}

@@ -1,22 +1,41 @@
 "use client";
 
-import React from "react";
-import { RotateCcw, QrCode, Share2, Plus, Loader2, LogOut } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import {
+  RotateCcw,
+  QrCode,
+  Share2,
+  Plus,
+  Loader2,
+  LogOut,
+  User as UserIcon,
+  ExternalLink,
+  ChevronDown,
+  Home,
+  Pencil,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { User } from "@/lib/auth";
+import { useUserProfileQuery } from "@/hooks/useProfileQueries";
 import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 interface TopBarProps {
   user: User | null;
   onLogin: () => void;
   onLogout: () => void;
   isAuthLoading?: boolean;
-  onReset: () => void;
+  onReset?: () => void;
   onOpenQr: () => void;
   onCopyPageUrl: () => void;
   onOpenAddLink?: () => void;
   isSyncing?: boolean;
+  /** 현재 로그인한 사용자의 표시 이름 (미전달 시 useUserProfileQuery 또는 user.displayName 사용) */
+  profileName?: string;
+  /** 프로필 수정 모달 열기 핸들러 */
+  onEditProfile?: () => void;
 }
 
 function GoogleIcon({ className = "w-4 h-4" }: { className?: string }) {
@@ -52,18 +71,80 @@ export function TopBar({
   onCopyPageUrl,
   onOpenAddLink,
   isSyncing = false,
+  profileName,
+  onEditProfile,
 }: TopBarProps) {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  // 로그인한 유저의 프로필 정보를 구독하여 최신 displayName(profile.name) 확보
+  const { data: myProfile } = useUserProfileQuery(user);
+
+  const resolvedDisplayName = (
+    profileName ||
+    myProfile?.name ||
+    user?.displayName ||
+    (user ? "내 링크" : "")
+  ).trim();
+
+  const personalPageHref = resolvedDisplayName
+    ? `/${encodeURIComponent(resolvedDisplayName)}`
+    : "/";
+
+  const isOnPersonalPage =
+    !!resolvedDisplayName &&
+    (pathname === personalPageHref ||
+      decodeURIComponent(pathname || "") === `/${resolvedDisplayName}`);
+
+  // 바깥 영역 클릭 또는 ESC 키 입력 시 프로필 드롭다운 닫기
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isDropdownOpen]);
+
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#E5E8EB] transition-colors">
-      <div className="max-w-md mx-auto px-4 h-14 flex items-center justify-between">
-        {/* 서비스 로고 및 실시간 동기화 상태 */}
-        <div className="flex items-center space-x-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#3182F6]" />
-          <span className="text-[17px] font-bold tracking-tight text-[#191F28]">
-            MyLink
-          </span>
+      <div className="max-w-md mx-auto px-4 h-14 flex items-center justify-between gap-2">
+        {/* 좌측: 서비스 로고 및 동기화 상태 */}
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            href="/"
+            className="flex items-center space-x-2 hover:opacity-80 transition-opacity shrink-0"
+            title="마이링크 홈으로 이동"
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-[#3182F6]" />
+            <span className="text-[17px] font-bold tracking-tight text-[#191F28]">
+              MyLink
+            </span>
+          </Link>
+
           {isSyncing && (
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#E8F3FF] text-[#3182F6] animate-pulse">
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#E8F3FF] text-[#3182F6] animate-pulse shrink-0">
               <Loader2 className="w-3 h-3 animate-spin" />
               <span>동기화 중</span>
             </span>
@@ -71,15 +152,32 @@ export function TopBar({
         </div>
 
         {/* 우측 액션 그룹 */}
-        <div className="flex items-center space-x-1.5">
-          {/* 로그인 상태에 따른 버튼 */}
+        <div className="flex items-center space-x-1 shrink-0">
           {isAuthLoading ? (
             <div className="h-8 w-20 flex items-center justify-center">
               <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
             </div>
           ) : user ? (
-            /* 로그인 완료 상태: 사용자 아바타 & 로그아웃 */
-            <div className="flex items-center gap-1.5">
+            /* 로그인 완료 상태: 내 페이지 바로가기 버튼 & 액션 버튼 & 프로필 드롭다운 */
+            <div className="flex items-center gap-1">
+              {/* 헤더 내 페이지 바로가기 버튼 */}
+              {resolvedDisplayName && (
+                <Link
+                  href={personalPageHref}
+                  title={`${resolvedDisplayName} 님의 내 페이지로 바로가기 (/${resolvedDisplayName})`}
+                  aria-label="내 페이지로 바로가기"
+                  className={cn(
+                    "inline-flex items-center gap-1 h-8 px-2.5 rounded-[10px] text-xs font-semibold transition-all active:scale-[0.98] shrink-0",
+                    isOnPersonalPage
+                      ? "bg-[#3182F6] text-white shadow-2xs"
+                      : "bg-[#F2F4F6] text-[#333D4B] hover:bg-[#E8F3FF] hover:text-[#3182F6]"
+                  )}
+                >
+                  <span>내 페이지</span>
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                </Link>
+              )}
+
               {/* 새 링크 추가 버튼 */}
               {onOpenAddLink && (
                 <Button
@@ -96,16 +194,23 @@ export function TopBar({
               )}
 
               {/* 기본 템플릿 초기화 버튼 */}
-              <Button
-                variant="icon"
-                size="icon-m"
-                onClick={onReset}
-                title="기본 템플릿으로 초기화"
-                aria-label="데이터 초기화"
-                className="w-8 h-8"
-              >
-                <RotateCcw className={cn("w-3.5 h-3.5 text-slate-600", isSyncing && "animate-spin text-[#3182F6]")} />
-              </Button>
+              {onReset && (
+                <Button
+                  variant="icon"
+                  size="icon-m"
+                  onClick={onReset}
+                  title="기본 템플릿으로 초기화"
+                  aria-label="데이터 초기화"
+                  className="w-8 h-8"
+                >
+                  <RotateCcw
+                    className={cn(
+                      "w-3.5 h-3.5 text-slate-600",
+                      isSyncing && "animate-spin text-[#3182F6]"
+                    )}
+                  />
+                </Button>
+              )}
 
               {/* QR 코드 보기 버튼 */}
               <Button
@@ -131,45 +236,151 @@ export function TopBar({
                 <Share2 className="w-3.5 h-3.5 text-slate-600" />
               </Button>
 
-              {/* 프로필 미니 아바타 및 로그아웃 버튼 */}
-              <div className="flex items-center pl-1 border-l border-slate-200 gap-1.5">
-                <div
-                  className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 overflow-hidden relative flex items-center justify-center shrink-0"
-                  title={user.displayName || user.email || "사용자"}
+              {/* 프로필 드롭다운 영역 */}
+              <div
+                ref={dropdownRef}
+                className="relative pl-1 border-l border-slate-200 ml-0.5"
+              >
+                <button
+                  type="button"
+                  onClick={() => setIsDropdownOpen((prev) => !prev)}
+                  aria-expanded={isDropdownOpen}
+                  aria-haspopup="menu"
+                  aria-label="프로필 메뉴 열기"
+                  title="프로필 메뉴"
+                  className="flex items-center gap-1 p-1 rounded-full hover:bg-[#F2F4F6] active:scale-95 transition cursor-pointer"
                 >
-                  {user.photoURL ? (
-                    <Image
-                      src={user.photoURL}
-                      alt={user.displayName || "프로필"}
-                      width={28}
-                      height={28}
-                      className="w-full h-full object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <span className="text-[11px] font-bold text-[#3182F6]">
-                      {(user.displayName || user.email || "U").slice(0, 1)}
-                    </span>
-                  )}
-                </div>
+                  <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 overflow-hidden relative flex items-center justify-center shrink-0">
+                    {myProfile?.avatarUrl || user.photoURL ? (
+                      <Image
+                        src={(myProfile?.avatarUrl || user.photoURL)!}
+                        alt={resolvedDisplayName || "프로필"}
+                        width={28}
+                        height={28}
+                        className="w-full h-full object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <span className="text-[11px] font-bold text-[#3182F6]">
+                        {(resolvedDisplayName || user.email || "U").slice(0, 1)}
+                      </span>
+                    )}
+                  </div>
+                  <ChevronDown
+                    className={cn(
+                      "w-3.5 h-3.5 text-[#6B7684] transition-transform duration-150",
+                      isDropdownOpen && "rotate-180 text-[#191F28]"
+                    )}
+                  />
+                </button>
 
-                <Button
-                  variant="ghost"
-                  size="s"
-                  onClick={onLogout}
-                  title="로그아웃"
-                  aria-label="로그아웃"
-                  className="h-8 px-2 text-xs text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5 mr-1" />
-                  <span className="hidden sm:inline">로그아웃</span>
-                </Button>
+                {/* 프로필 드롭다운 메뉴 */}
+                {isDropdownOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 mt-2 w-60 rounded-[18px] bg-white border border-[#E5E8EB] shadow-[0_12px_32px_rgba(25,31,40,0.12),0_2px_6px_rgba(25,31,40,0.06)] py-2 z-50 animate-in fade-in zoom-in-95 duration-150"
+                  >
+                    {/* 상단 유저 정보 요약 */}
+                    <div className="px-4 py-2.5 border-b border-[#F2F4F6]">
+                      <p className="text-[14px] font-bold text-[#191F28] truncate">
+                        {resolvedDisplayName || "사용자"}
+                      </p>
+                      {user.email && (
+                        <p className="text-[11px] text-[#8B95A1] truncate mt-0.5">
+                          {user.email}
+                        </p>
+                      )}
+                      {resolvedDisplayName && (
+                        <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#E8F3FF] text-[#3182F6] max-w-full truncate">
+                          /{resolvedDisplayName}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* 메뉴 리스트 */}
+                    <div className="py-1 px-1.5 space-y-0.5">
+                      {/* 1. 개인별 페이지 이동 (/[displayName]) */}
+                      {resolvedDisplayName && (
+                        <Link
+                          href={personalPageHref}
+                          role="menuitem"
+                          onClick={() => setIsDropdownOpen(false)}
+                          className="flex items-center justify-between w-full px-3 py-2.5 rounded-[12px] text-[13px] font-semibold text-[#191F28] hover:bg-[#E8F3FF] hover:text-[#3182F6] transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <UserIcon className="w-4 h-4 text-[#3182F6] shrink-0" />
+                            <div className="min-w-0 text-left">
+                              <p className="truncate">내 페이지로 바로가기</p>
+                              <p className="text-[11px] font-normal text-[#8B95A1] truncate">
+                                /{resolvedDisplayName}
+                              </p>
+                            </div>
+                          </div>
+                          <ExternalLink className="w-3.5 h-3.5 text-[#8B95A1] shrink-0" />
+                        </Link>
+                      )}
+
+                      {/* 2. 메인 홈으로 이동 */}
+                      <Link
+                        href="/"
+                        role="menuitem"
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-[12px] text-[13px] font-medium text-[#4E5968] hover:bg-[#F2F4F6] hover:text-[#191F28] transition-colors"
+                      >
+                        <Home className="w-4 h-4 text-[#6B7684] shrink-0" />
+                        <span>메인 홈 (관리)</span>
+                      </Link>
+
+                      {/* 3. 프로필 수정 (핸들러가 있을 때) */}
+                      {onEditProfile && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsDropdownOpen(false);
+                            onEditProfile();
+                          }}
+                          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-[12px] text-[13px] font-medium text-[#4E5968] hover:bg-[#F2F4F6] hover:text-[#191F28] transition-colors cursor-pointer text-left"
+                        >
+                          <Pencil className="w-4 h-4 text-[#6B7684] shrink-0" />
+                          <span>프로필 수정</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 하단 로그아웃 */}
+                    <div className="pt-1 mt-1 px-1.5 border-t border-[#F2F4F6]">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          onLogout();
+                        }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-[12px] text-[13px] font-semibold text-[#F04452] hover:bg-[#FFF0F1] transition-colors cursor-pointer text-left"
+                      >
+                        <LogOut className="w-4 h-4 shrink-0" />
+                        <span>로그아웃</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
-            /* 비로그인 상태: 구글 로그인 버튼 */
+            /* 비로그인 상태: 공유 버튼 & 구글 로그인 버튼 */
             <div className="flex items-center gap-1.5">
-              {/* QR 및 공유 버튼은 비로그인 상태에서도 미리보기 가능 */}
+              <Button
+                variant="icon"
+                size="icon-m"
+                onClick={onOpenQr}
+                title="QR 코드 보기"
+                aria-label="QR 코드 보기"
+                className="w-8 h-8"
+              >
+                <QrCode className="w-3.5 h-3.5 text-slate-600" />
+              </Button>
+
               <Button
                 variant="icon"
                 size="icon-m"
@@ -181,7 +392,6 @@ export function TopBar({
                 <Share2 className="w-3.5 h-3.5 text-slate-600" />
               </Button>
 
-              {/* 구글 소셜 로그인 버튼 */}
               <button
                 type="button"
                 onClick={onLogin}

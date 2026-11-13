@@ -10,6 +10,7 @@ import defaultData from "@/data/mockData.json";
 import { ProfileData, ProfileInfo, LinkItem } from "@/types/profile";
 import {
   getUserProfile,
+  getUserByDisplayName,
   saveUserProfile,
   getLinks,
   addLink,
@@ -18,14 +19,36 @@ import {
   initUserDefaultLinks,
   subscribeLinks,
   FirestoreLinkResult,
+  UserSearchResult,
 } from "@/lib/firestore";
 import type { User } from "@/lib/auth";
 
 export const profileKeys = {
   all: ["profile"] as const,
   userProfile: (uid: string) => [...profileKeys.all, "info", uid] as const,
+  userByDisplayName: (displayName: string) =>
+    [...profileKeys.all, "byDisplayName", displayName] as const,
   userLinks: (uid: string) => [...profileKeys.all, "links", uid] as const,
 };
+
+/**
+ * 0. displayName으로 유저 검색 Query (/[displayName] 동적 라우팅용)
+ * - users 컬렉션에서 displayName과 일치하는 유저의 { userId, profile } 조회
+ * - 일치하는 유저가 없으면 null 반환
+ */
+export function useUserByDisplayNameQuery(displayName: string) {
+  const normalizedName = displayName.trim();
+
+  return useQuery({
+    queryKey: profileKeys.userByDisplayName(normalizedName),
+    enabled: !!normalizedName,
+    retry: false,
+    queryFn: async (): Promise<UserSearchResult | null> => {
+      if (!normalizedName) return null;
+      return await getUserByDisplayName(normalizedName);
+    },
+  });
+}
 
 /**
  * 1. 유저 프로필 조회 Query
@@ -53,6 +76,13 @@ export function useUserProfileQuery(user: User | null) {
           name: remoteProfile.name || user.displayName || "내 링크",
           email: user.email || remoteProfile.email,
         };
+        if (!remoteProfile.name && resolvedProfile.name) {
+          await saveUserProfile(uid, resolvedProfile, {
+            email: user.email,
+            displayName: resolvedProfile.name,
+            photoURL: user.photoURL,
+          }).catch((err) => console.warn("프로필 동기화 저장 실패:", err));
+        }
       } else {
         resolvedProfile = {
           name: user.displayName || "내 링크",
@@ -64,7 +94,7 @@ export function useUserProfileQuery(user: User | null) {
         };
         await saveUserProfile(uid, resolvedProfile, {
           email: user.email,
-          displayName: user.displayName,
+          displayName: resolvedProfile.name,
           photoURL: user.photoURL,
         }).catch((err) => console.warn("프로필 초기 저장 실패:", err));
       }
@@ -143,17 +173,21 @@ export function useUpdateProfileMutation(
     },
     onSettled: () => {
       // 서버 상태와 최종 동기화
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: profileKeys.all });
     },
   });
 }
 
 /**
  * 3. 유저 링크 목록 조회 Query + 실시간 구독 동기화
- * - 최초 조회 시 링크가 하나도 없으면 기본 템플릿 시딩
+ * - 최초 조회 시 링크가 하나도 없으면 기본 템플릿 시딩 (seedIfEmpty 옵션이 true일 때)
  * - Firestore onSnapshot 실시간 업데이트를 QueryClient 캐시에 반영
  */
-export function useUserLinksQuery(uid: string | undefined) {
+export function useUserLinksQuery(
+  uid: string | undefined,
+  options?: { seedIfEmpty?: boolean }
+) {
+  const seedIfEmpty = options?.seedIfEmpty ?? true;
   const queryClient = useQueryClient();
   const queryKey = profileKeys.userLinks(uid || "anonymous");
 
@@ -163,7 +197,7 @@ export function useUserLinksQuery(uid: string | undefined) {
     queryFn: async (): Promise<FirestoreLinkResult[]> => {
       if (!uid) return [];
       const initialLinks = await getLinks(uid);
-      if (initialLinks.length === 0) {
+      if (initialLinks.length === 0 && seedIfEmpty) {
         await initUserDefaultLinks(
           uid,
           (defaultData as ProfileData).categories

@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { ProfileInfo } from "@/types/profile";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Pencil } from "lucide-react";
+import { Pencil, ExternalLink } from "lucide-react";
 
 interface ProfileHeaderProps {
   profile: ProfileInfo;
@@ -12,13 +13,21 @@ interface ProfileHeaderProps {
   isOwner?: boolean;
   /** 편집 버튼 클릭 콜백 */
   onEditProfile?: () => void;
+  /** 내 페이지로 바로가기 버튼 노출 여부 */
+  showMyPageButton?: boolean;
 }
 
-export function ProfileHeader({ profile, isOwner = false, onEditProfile }: ProfileHeaderProps) {
+export function ProfileHeader({
+  profile,
+  isOwner = false,
+  onEditProfile,
+  showMyPageButton = false,
+}: ProfileHeaderProps) {
   const [imgError, setImgError] = useState(false);
 
   // 이니셜 추출 (한글 이름의 마지막 2글자 또는 영문 2글자)
   const initials = profile.name.length > 2 ? profile.name.slice(-2) : profile.name;
+  const trimmedName = profile.name.trim();
 
   return (
     <section className="flex flex-col items-center text-center pt-2 pb-2">
@@ -76,6 +85,19 @@ export function ProfileHeader({ profile, isOwner = false, onEditProfile }: Profi
       <p className="mt-3 text-[14px] text-[#4E5968] max-w-xs leading-relaxed whitespace-pre-line">
         {profile.bio}
       </p>
+
+      {/* 내 페이지로 바로가기 버튼 */}
+      {showMyPageButton && trimmedName && (
+        <div className="mt-3.5">
+          <Link
+            href={`/${encodeURIComponent(trimmedName)}`}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#E8F3FF] hover:bg-[#d6e8ff] text-[#3182F6] text-[12px] font-semibold transition-all active:scale-95 shadow-2xs"
+          >
+            <span>내 페이지로 바로가기</span>
+            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+          </Link>
+        </div>
+      )}
     </section>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   Dialog,
@@ -91,13 +91,6 @@ function EditProfileForm({
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // 이름 변경 시 중복 확인 상태 초기화
-  useEffect(() => {
-    if (isNameChanged) {
-      setDuplicateStatus("idle");
-    }
-  }, [name, isNameChanged]);
-
   // ── 유효성 검사 ──
   const validateName = (val: string): string | undefined => {
     const trimmed = val.trim();
@@ -131,6 +124,7 @@ function EditProfileForm({
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setName(val);
+    setDuplicateStatus("idle");
     setErrors((prev) => ({ ...prev, name: validateName(val) }));
   };
 

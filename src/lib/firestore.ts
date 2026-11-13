@@ -88,6 +88,7 @@ export async function saveUserProfile(
       userDocRef(userId),
       {
         profile: cleanProfile,
+        displayName: profile.name.trim(),
         updatedAt: serverTimestamp(),
         ...(extraMeta || {}),
       },
@@ -96,6 +97,80 @@ export async function saveUserProfile(
   } catch (err) {
     console.error('[Firestore] saveUserProfile 오류:', err);
     throw err;
+  }
+}
+
+export interface UserSearchResult {
+  userId: string;
+  profile: ProfileInfo;
+}
+
+/**
+ * displayName(profile.name 또는 displayName 필드)으로 사용자를 검색합니다.
+ * 일치하는 사용자가 없으면 null을 반환합니다.
+ */
+export async function getUserByDisplayName(
+  displayName: string,
+): Promise<UserSearchResult | null> {
+  try {
+    let decoded = displayName;
+    try {
+      decoded = decodeURIComponent(displayName);
+    } catch {
+      decoded = displayName;
+    }
+    const targetName = decoded.trim();
+    if (!targetName) return null;
+
+    // 1순위: profile.name 필드 검색
+    const q1 = query(
+      collection(db, USER_COLLECTION),
+      where('profile.name', '==', targetName),
+    );
+    let snap = await getDocs(q1);
+
+    // 2순위: 루트 displayName 필드 폴백 검색
+    if (snap.empty) {
+      const q2 = query(
+        collection(db, USER_COLLECTION),
+        where('displayName', '==', targetName),
+      );
+      snap = await getDocs(q2);
+    }
+
+    // 3순위: 루트 name 필드 폴백 검색
+    if (snap.empty) {
+      const q3 = query(
+        collection(db, USER_COLLECTION),
+        where('name', '==', targetName),
+      );
+      snap = await getDocs(q3);
+    }
+
+    if (snap.empty) return null;
+
+    const docSnap = snap.docs[0];
+    const data = docSnap.data();
+    const rawProfile = (data.profile || {}) as Partial<ProfileInfo>;
+
+    const profile: ProfileInfo = {
+      name: rawProfile.name || data.displayName || data.name || targetName,
+      role: rawProfile.role || data.role || '크리에이터',
+      bio: rawProfile.bio ?? data.bio ?? '',
+      avatarUrl:
+        rawProfile.avatarUrl || data.avatarUrl || data.photoURL || undefined,
+      email: rawProfile.email || data.email || undefined,
+      statusMessage:
+        rawProfile.statusMessage || data.statusMessage || undefined,
+    };
+
+    return {
+      userId: docSnap.id,
+      profile,
+    };
+  } catch (err) {
+    console.error('[Firestore] getUserByDisplayName 오류:', err);
+    return null;
   }
 }
 
