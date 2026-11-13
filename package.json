@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
-    "export": "GITHUB_PAGES=true next build --webpack && touch out/.nojekyll",
+    "export": "GITHUB_PAGES=true next build --webpack && touch out/.nojekyll && cp out/stats.html out/stats/index.html && cp out/신예헌.html out/신예헌/index.html && cp out/이지은.html out/이지은/index.html",
     "start": "next start",
     "lint": "eslint"
   },

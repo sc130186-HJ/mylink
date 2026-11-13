@@ -87,7 +87,7 @@ export default function StatsPage() {
   // 1. Firebase Auth 감지 및 비로그인 시 홈(/)으로 리다이렉트
   useEffect(() => {
     queueMicrotask(() => {
-      setCurrentUrl(window.location.origin);
+      setCurrentUrl(window.location.href);
     });
 
     const unsubscribeAuth = onAuthChange((currentUser) => {
@@ -216,7 +216,7 @@ export default function StatsPage() {
   };
 
   const handleCopyPageUrl = () => {
-    const urlToCopy = currentUrl || window.location.origin;
+    const urlToCopy = currentUrl || window.location.href;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(urlToCopy);
     }
