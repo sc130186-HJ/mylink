@@ -25,10 +25,12 @@
   <div class="w-full max-w-[440px] mb-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-2">
     <div class="flex items-center gap-1.5 font-medium">
       <span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
-      <span>방문자 뷰 와이어프레임 (모바일 390px 기준)</span>
+      <span id="viewModeBadge">방문자(비로그인) 뷰 와이어프레임</span>
     </div>
     <div class="flex items-center gap-2">
-      <span class="bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300 font-semibold px-2 py-0.5 rounded-full">Phase 1 Demo</span>
+      <button onclick="toggleAuthSimulation()" class="bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300 font-semibold px-2.5 py-1 rounded-full border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition flex items-center gap-1 cursor-pointer">
+        <span id="authToggleText">로그인 시뮬레이션</span> ⚡️
+      </button>
     </div>
   </div>
 
@@ -46,24 +48,29 @@
       </div>
     </div>
 
-    <!-- 2. 상단 글로벌 네비게이션 바 -->
-    <header class="h-14 px-5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/60 sticky top-0 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md z-20">
+    <!-- 2. 상단 글로벌 네비게이션 바 (구글 로그인 버튼 탑재) -->
+    <header class="h-14 px-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/60 sticky top-0 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md z-20">
       <div class="flex items-center gap-2">
         <span class="text-lg font-black tracking-tight text-[#191F28] dark:text-white flex items-center gap-1">
           <span class="w-2 h-2 rounded-full bg-blue-500"></span>MyLink
         </span>
       </div>
-      <div class="flex items-center gap-1.5">
-        <!-- 초기화 버튼 -->
-        <button onclick="handleResetData()" title="데이터 초기화" class="p-2 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-90">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+
+      <!-- 우측 액션 그룹: 비로그인 / 로그인 상태에 따라 교체 -->
+      <div id="headerActions" class="flex items-center gap-1.5">
+        <!-- 초기 상태(비로그인): Google 로그인 버튼 -->
+        <button onclick="handleGoogleLogin()" title="Google 계정으로 로그인" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-xs active:scale-95 transition cursor-pointer">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span>Google 로그인</span>
         </button>
-        <!-- QR 모달 트리거 -->
-        <button onclick="toggleQrModal(true)" title="QR 코드 보기" class="p-2 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-90">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
-        </button>
+
         <!-- 링크 복사 버튼 -->
-        <button onclick="handleCopyUrl()" title="페이지 URL 복사" class="p-2 rounded-full text-blue-600 bg-blue-50 dark:bg-blue-950/60 dark:text-blue-400 hover:bg-blue-100 transition active:scale-90">
+        <button onclick="handleCopyUrl()" title="페이지 URL 복사" class="p-2 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-90">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
         </button>
       </div>
@@ -72,13 +79,68 @@
     <!-- 스크롤 가능 본문 영역 -->
     <main class="flex-1 overflow-y-auto custom-scroll px-5 py-6 pb-20 space-y-6">
 
-      <!-- 3. 프로필 헤더 카드 -->
-      <section class="flex flex-col items-center text-center pt-2 pb-1">
+      <!-- ============================================== -->
+      <!-- A. 비로그인 안내 설명 배너 (로그인을 안 했을 때 노출) -->
+      <!-- ============================================== -->
+      <section id="unauthSection" class="p-5 rounded-3xl bg-gradient-to-b from-blue-50/70 to-white dark:from-slate-900 dark:to-slate-950 border border-blue-100 dark:border-slate-800 text-center space-y-4">
+        <div class="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        </div>
+
+        <div>
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+            소셜 로그인 연동
+          </span>
+          <h2 class="text-base font-bold text-[#191F28] dark:text-white mt-1.5">
+            로그인하고 나만의 링크 페이지를 시작하세요
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+            Google 계정으로 로그인하시면 <br class="hidden sm:inline">
+            <span class="font-mono text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-blue-200 dark:border-slate-700">users/{user.uid}/links</span> 경로에
+            나만의 링크가 안전하게 저장되고 실시간 동기화됩니다.
+          </p>
+        </div>
+
+        <!-- Google 로그인 바로가기 큰 버튼 -->
+        <button onclick="handleGoogleLogin()" class="w-full py-3 px-4 rounded-xl bg-[#3182F6] hover:bg-blue-600 active:scale-[0.98] text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-md transition">
+          <div class="p-1 rounded-full bg-white flex items-center justify-center">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+          </div>
+          <span>Google 계정으로 3초 만에 시작하기</span>
+        </button>
+
+        <div class="text-[11px] text-slate-400">
+          ⚡️ 아래 화면은 <span class="font-semibold text-slate-500">예시 미리보기</span>입니다.
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- B. 로그인 상태 배너 (로그인 시 노출) -->
+      <!-- ============================================== -->
+      <section id="authBanner" class="hidden p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-900/50 flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="font-medium text-slate-700 dark:text-slate-300">
+            <b id="userEmailBadge" class="text-blue-600 dark:text-blue-400">user@gmail.com</b> 로그인 중
+          </span>
+        </div>
+        <span class="font-mono text-[10px] bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full border border-blue-200 dark:border-slate-700">
+          users/{uid}/links 동기화됨
+        </span>
+      </section>
+
+      <!-- 3. 프로필 헤더 카드 (로그인 유저 정보 반영) -->
+      <section class="flex flex-col items-center text-center pt-2 pb-1" id="profileCard">
         <!-- 아바타 -->
         <div class="relative group cursor-pointer">
           <div class="w-20 h-20 rounded-full p-[3px] bg-gradient-to-tr from-blue-500 to-indigo-400 shadow-md">
-            <div class="w-full h-full rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-white dark:border-slate-900">
-              <span class="text-2xl font-bold text-blue-600 dark:text-blue-400">지은</span>
+            <div id="userAvatarContainer" class="w-full h-full rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-white dark:border-slate-900">
+              <span id="userAvatarText" class="text-2xl font-bold text-blue-600 dark:text-blue-400">지은</span>
             </div>
           </div>
           <!-- 온라인 상태 표시점 -->
@@ -87,14 +149,14 @@
 
         <!-- 이름 및 직무 뱃지 -->
         <div class="mt-3.5 flex items-center gap-2">
-          <h1 class="text-xl font-bold tracking-tight text-[#191F28] dark:text-white">이지은</h1>
-          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
+          <h1 id="userNameHeading" class="text-xl font-bold tracking-tight text-[#191F28] dark:text-white">이지은</h1>
+          <span id="userRoleBadge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
             Frontend Dev
           </span>
         </div>
 
         <!-- 한 줄 소개글 (Bio) -->
-        <p class="mt-2 text-sm text-[#4E5968] dark:text-slate-300 max-w-[280px] leading-relaxed">
+        <p id="userBioText" class="mt-2 text-sm text-[#4E5968] dark:text-slate-300 max-w-[280px] leading-relaxed">
           UX와 인터랙션에 진심인 프론트엔드 개발자입니다.<br>
           복잡한 문제를 단순하고 직관적인 코드로 풉니다. ✨
         </p>
@@ -184,7 +246,7 @@
                   <span class="text-sm font-bold text-[#191F28] dark:text-white">마이링크 (MyLink)</span>
                   <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300">Live</span>
                 </div>
-                <p class="text-xs text-[#8B95A1] dark:text-slate-400 mt-0.5">LocalStorage 기반 개인 맞춤 링크트리</p>
+                <p class="text-xs text-[#8B95A1] dark:text-slate-400 mt-0.5">users/{uid}/links 기반 개인 맞춤 링크트리</p>
               </div>
             </div>
             <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
@@ -192,14 +254,13 @@
         </a>
       </section>
 
-      <!-- 6. 카테고리 3: 연락처 및 커피챗 (원클릭 복사 카드) -->
+      <!-- 6. 카테고리 3: 연락처 및 커피챗 -->
       <section class="space-y-2.5">
         <div class="flex items-center justify-between px-1">
           <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">연락처 & 커피챗 (Contact)</h2>
           <span class="text-[11px] text-slate-400">1개</span>
         </div>
 
-        <!-- 카드 5: 이메일 문의 (클릭 시 복사 액션) -->
         <button onclick="handleCopyEmail('jieun.dev@email.com')" class="w-full p-3.5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-900 border border-blue-200/60 dark:border-slate-800 hover:border-blue-500 transition duration-200 shadow-sm active:scale-[0.98] text-left">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -211,7 +272,7 @@
                   <span class="text-sm font-bold text-[#191F28] dark:text-white">이메일 문의 & 커피챗</span>
                   <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">클릭 복사</span>
                 </div>
-                <p class="text-xs text-[#4E5968] dark:text-slate-300 mt-0.5 font-mono">jieun.dev@email.com</p>
+                <p id="userEmailContact" class="text-xs text-[#4E5968] dark:text-slate-300 mt-0.5 font-mono">jieun.dev@email.com</p>
               </div>
             </div>
             <div class="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 text-[11px] font-medium text-blue-600 dark:text-blue-400 shadow-xs border border-slate-200/60 dark:border-slate-700">
@@ -223,12 +284,12 @@
 
       <!-- 7. 푸터 -->
       <footer class="pt-6 pb-2 text-center text-xs text-slate-400 dark:text-slate-500 space-y-1">
-        <p>© 2026 Jieun Lee. All rights reserved.</p>
-        <p class="text-[11px]">Powered by <span class="font-bold text-slate-500 dark:text-slate-400">MyLink</span> · Phase 1 Demo</p>
+        <p id="footerCopy">© 2026 Jieun Lee. All rights reserved.</p>
+        <p class="text-[11px]">Powered by <span class="font-bold text-slate-500 dark:text-slate-400">MyLink</span> · Firestore Synced</p>
       </footer>
     </main>
 
-    <!-- 8. TDS 플로팅 토스트 (클립보드 복사 등 알림) -->
+    <!-- 8. TDS 플로팅 토스트 -->
     <div id="toast" class="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-full bg-[#191F28]/95 dark:bg-slate-800/95 text-white text-xs font-medium shadow-xl backdrop-blur-sm flex items-center gap-2 transition-all duration-300 opacity-0 translate-y-3 pointer-events-none z-30">
       <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
       <span id="toast-message">주소가 복사되었습니다.</span>
@@ -247,11 +308,8 @@
         <h3 class="text-base font-bold text-[#191F28] dark:text-white -mt-2">모바일로 바로 보기</h3>
         <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">스마트폰 카메라로 스캔하세요</p>
         
-        <!-- QR 코드 모의 박스 -->
         <div class="w-40 h-40 bg-white p-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 shadow-inner mt-4 flex items-center justify-center">
-          <!-- SVG QR Pattern Mock -->
           <svg class="w-full h-full text-slate-900" viewBox="0 0 100 100" fill="currentColor">
-            <!-- 코너 파인더 3개 -->
             <rect x="5" y="5" width="26" height="26" rx="4" fill="#3182F6"/>
             <rect x="9" y="9" width="18" height="18" rx="2" fill="white"/>
             <rect x="13" y="13" width="10" height="10" rx="1" fill="#3182F6"/>
@@ -264,7 +322,6 @@
             <rect x="9" y="73" width="18" height="18" rx="2" fill="white"/>
             <rect x="13" y="77" width="10" height="10" rx="1" fill="#3182F6"/>
             
-            <!-- 랜덤 QR 데이터 픽셀 모의 -->
             <rect x="36" y="8" width="6" height="6" />
             <rect x="46" y="8" width="6" height="14" />
             <rect x="56" y="14" width="8" height="6" />
@@ -300,6 +357,16 @@
 
   <script>
     let toastTimer = null;
+    let isLoggedIn = false;
+
+    const mockUser = {
+      uid: 'user_goog_987654321',
+      name: '김민수',
+      role: 'Product Designer',
+      email: 'minsu.design@gmail.com',
+      bio: '디자인과 기술을 연결하는 프로덕트 디자이너 김민수입니다 🎨',
+      initials: '민수'
+    };
 
     function showToast(message) {
       const toast = document.getElementById('toast');
@@ -314,6 +381,115 @@
         toast.classList.remove('opacity-100', 'translate-y-0');
         toast.classList.add('opacity-0', 'translate-y-3', 'pointer-events-none');
       }, 2400);
+    }
+
+    function renderAuthState() {
+      const headerActions = document.getElementById('headerActions');
+      const unauthSection = document.getElementById('unauthSection');
+      const authBanner = document.getElementById('authBanner');
+      const viewModeBadge = document.getElementById('viewModeBadge');
+      const authToggleText = document.getElementById('authToggleText');
+
+      const userNameHeading = document.getElementById('userNameHeading');
+      const userRoleBadge = document.getElementById('userRoleBadge');
+      const userBioText = document.getElementById('userBioText');
+      const userAvatarText = document.getElementById('userAvatarText');
+      const userEmailContact = document.getElementById('userEmailContact');
+      const footerCopy = document.getElementById('footerCopy');
+
+      if (isLoggedIn) {
+        // 로그인 상태 렌더링
+        viewModeBadge.textContent = '로그인 뷰 (Firestore: users/{uid}/links)';
+        authToggleText.textContent = '로그아웃으로 전환';
+
+        // 헤더 버튼: 프로필 요약 및 로그아웃 버튼
+        headerActions.innerHTML = `
+          <div class="flex items-center gap-1.5">
+            <button onclick="handleResetData()" title="데이터 초기화" class="p-2 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-90">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </button>
+            <button onclick="toggleQrModal(true)" title="QR 코드 보기" class="p-2 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-90">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+            </button>
+            <button onclick="handleCopyUrl()" title="페이지 URL 복사" class="p-2 rounded-full text-blue-600 bg-blue-50 dark:bg-blue-950/60 dark:text-blue-400 hover:bg-blue-100 transition active:scale-90">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+            </button>
+            <div class="flex items-center pl-1 border-l border-slate-200 dark:border-slate-800 gap-1">
+              <div class="w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                ${mockUser.initials[0]}
+              </div>
+              <button onclick="handleLogout()" class="px-2 py-1 text-xs text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800 rounded transition font-medium">
+                로그아웃
+              </button>
+            </div>
+          </div>
+        `;
+
+        // 안내 섹션 숨기고, 로그인 동기화 배너 노출
+        unauthSection.classList.add('hidden');
+        authBanner.classList.remove('hidden');
+        document.getElementById('userEmailBadge').textContent = mockUser.email;
+
+        // 개인화 유저 정보 표시
+        userNameHeading.textContent = mockUser.name;
+        userRoleBadge.textContent = mockUser.role;
+        userBioText.innerHTML = mockUser.bio;
+        userAvatarText.textContent = mockUser.initials;
+        userEmailContact.textContent = mockUser.email;
+        footerCopy.textContent = `© 2026 ${mockUser.name}. All rights reserved.`;
+
+      } else {
+        // 비로그인 상태 렌더링
+        viewModeBadge.textContent = '방문자(비로그인) 뷰 와이어프레임';
+        authToggleText.textContent = '로그인 시뮬레이션';
+
+        headerActions.innerHTML = `
+          <button onclick="handleGoogleLogin()" title="Google 계정으로 로그인" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-xs active:scale-95 transition cursor-pointer">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Google 로그인</span>
+          </button>
+          <button onclick="handleCopyUrl()" title="페이지 URL 복사" class="p-2 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-90">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+          </button>
+        `;
+
+        // 비로그인 안내 배너 노출
+        unauthSection.classList.remove('hidden');
+        authBanner.classList.add('hidden');
+
+        // 기본 데모 프로필 복원
+        userNameHeading.textContent = '이지은';
+        userRoleBadge.textContent = 'Frontend Dev';
+        userBioText.innerHTML = `UX와 인터랙션에 진심인 프론트엔드 개발자입니다.<br>복잡한 문제를 단순하고 직관적인 코드로 풉니다. ✨`;
+        userAvatarText.textContent = '지은';
+        userEmailContact.textContent = 'jieun.dev@email.com';
+        footerCopy.textContent = '© 2026 Jieun Lee. All rights reserved.';
+      }
+    }
+
+    function handleGoogleLogin() {
+      isLoggedIn = true;
+      renderAuthState();
+      showToast(`${mockUser.name}님, 구글 계정으로 로그인되었습니다 ✨`);
+    }
+
+    function handleLogout() {
+      isLoggedIn = false;
+      renderAuthState();
+      showToast('로그아웃되었습니다 👋');
+    }
+
+    function toggleAuthSimulation() {
+      if (isLoggedIn) {
+        handleLogout();
+      } else {
+        handleGoogleLogin();
+      }
     }
 
     function handleCopyUrl() {
@@ -342,6 +518,9 @@
         modal.classList.add('opacity-0', 'pointer-events-none');
       }
     }
+
+    // 초기 렌더링
+    renderAuthState();
   </script>
 </body>
 </html>

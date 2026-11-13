@@ -2,8 +2,15 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { Avatar as BaseAvatar } from "@base-ui/react";
 
-interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
+/**
+ * Base UI Avatar 기반 TDS 규격 Avatar
+ * - Base UI Avatar: 이미지 로드 실패 시 Fallback 자동 전환 처리
+ * - 4단 사이즈: s(32px), m(44px), l(64px), xl(80px)
+ */
+
+interface AvatarRootProps extends React.ComponentPropsWithoutRef<typeof BaseAvatar.Root> {
   size?: "s" | "m" | "l" | "xl";
   online?: boolean;
 }
@@ -15,10 +22,10 @@ const sizeClasses = {
   xl: "w-20 h-20 text-[24px]",
 };
 
-const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
+const Avatar = React.forwardRef<HTMLSpanElement, AvatarRootProps>(
   ({ className, size = "m", online, children, ...props }, ref) => {
     return (
-      <div
+      <BaseAvatar.Root
         ref={ref}
         className={cn(
           "relative inline-flex shrink-0 rounded-full select-none",
@@ -36,7 +43,7 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
             aria-label="온라인"
           />
         )}
-      </div>
+      </BaseAvatar.Root>
     );
   }
 );
@@ -44,10 +51,9 @@ Avatar.displayName = "Avatar";
 
 const AvatarImage = React.forwardRef<
   HTMLImageElement,
-  React.ImgHTMLAttributes<HTMLImageElement>
+  React.ComponentPropsWithoutRef<typeof BaseAvatar.Image>
 >(({ className, alt = "프로필 이미지", ...props }, ref) => (
-  // eslint-disable-next-line @next/next/no-img-element
-  <img
+  <BaseAvatar.Image
     ref={ref}
     alt={alt}
     className={cn("w-full h-full object-cover", className)}
@@ -57,10 +63,10 @@ const AvatarImage = React.forwardRef<
 AvatarImage.displayName = "AvatarImage";
 
 const AvatarFallback = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
+  HTMLSpanElement,
+  React.ComponentPropsWithoutRef<typeof BaseAvatar.Fallback>
 >(({ className, ...props }, ref) => (
-  <div
+  <BaseAvatar.Fallback
     ref={ref}
     className={cn(
       "w-full h-full bg-[#E8F3FF] text-[#3182F6] font-bold flex items-center justify-center",

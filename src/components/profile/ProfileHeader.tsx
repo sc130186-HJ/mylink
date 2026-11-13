@@ -40,12 +40,17 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
         </Badge>
       </div>
 
-      {/* 상태 메시지 태그 */}
-      {profile.statusMessage && (
+      {/* 상태 메시지 또는 이메일 태그 */}
+      {profile.statusMessage ? (
         <div className="mt-2.5 inline-flex items-center px-3 py-1 rounded-full text-[12px] font-medium bg-[#F2F4F6] text-[#4E5968] max-w-[90%] truncate">
           <span>{profile.statusMessage}</span>
         </div>
-      )}
+      ) : profile.email ? (
+        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span>{profile.email}</span>
+        </div>
+      ) : null}
 
       {/* 한 줄 소개글 (Bio - 개행 지원) */}
       <p className="mt-3 text-[14px] text-[#4E5968] max-w-xs leading-relaxed whitespace-pre-line">

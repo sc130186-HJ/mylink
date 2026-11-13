@@ -3,15 +3,15 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import { Button as BaseButton } from "@base-ui/react";
 
 /**
- * 토스 디자인 시스템(TDS) 핸드오프 공식 규격 Button
+ * Base UI Button 기반 TDS 규격 Button
  * - 4단 스케일: XL(56px/r16), L(48px/r14), M(40px/r12), S(32px/r10)
- * - 미세 축소 프레스 피드백: active:scale-[0.985]
- * - 비활성화 투명도: disabled:opacity-30 (TDS disabled-opacity 0.30 규격)
+ * - Base UI Button: 접근성 속성(aria-disabled, role, data-disabled) 자동 처리
  */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center font-medium select-none whitespace-nowrap transition-all duration-150 outline-none cursor-pointer disabled:opacity-30 disabled:pointer-events-none active:scale-[0.985] tds-pressable",
+  "inline-flex items-center justify-center font-medium select-none whitespace-nowrap transition-all duration-150 outline-none cursor-pointer data-[disabled]:opacity-30 data-[disabled]:pointer-events-none active:scale-[0.985]",
   {
     variants: {
       variant: {
@@ -45,15 +45,13 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
-}
+  extends React.ComponentPropsWithoutRef<typeof BaseButton>,
+    VariantProps<typeof buttonVariants> {}
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, ...props }, ref) => {
     return (
-      <button
+      <BaseButton
         ref={ref}
         className={cn(buttonVariants({ variant, size, className }))}
         {...props}

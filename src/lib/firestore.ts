@@ -17,7 +17,6 @@ import {
   getDoc,
   setDoc,
   addDoc,
-  updateDoc,
   deleteDoc,
   getDocs,
   collection,
@@ -28,14 +27,76 @@ import {
   FirestoreError,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { ProfileData, LinkItem } from '@/types/profile';
+import { ProfileData, LinkItem, ProfileInfo } from '@/types/profile';
 
 const COLLECTION = 'profiles';
-const USER_COLLECTION = 'user';
+const USER_COLLECTION = 'users';
 
-/** user/{userId}/links 경로의 컬렉션 ref */
+/** users/{userId}/links 경로의 컬렉션 ref */
 export const linksRef = (userId = 'anonymous') =>
   collection(db, USER_COLLECTION, userId, 'links');
+
+/** users/{userId} 경로의 문서 ref */
+export const userDocRef = (userId: string) =>
+  doc(db, USER_COLLECTION, userId);
+
+// ─────────────────────────────────────────────
+// 유저 프로필 관리 (users/{userId})
+// ─────────────────────────────────────────────
+
+/**
+ * users/{userId} 에서 사용자 프로필 정보를 조회합니다.
+ */
+export async function getUserProfile(userId: string): Promise<ProfileInfo | null> {
+  try {
+    const snap = await getDoc(userDocRef(userId));
+    if (!snap.exists()) return null;
+    const data = snap.data();
+    if (data.profile) {
+      return data.profile as ProfileInfo;
+    }
+    return {
+      name: data.name || '',
+      role: data.role || '크리에이터',
+      bio: data.bio || '',
+      avatarUrl: data.avatarUrl || data.photoURL || undefined,
+      email: data.email || undefined,
+      statusMessage: data.statusMessage || undefined,
+    };
+  } catch (err) {
+    console.error('[Firestore] getUserProfile 오류:', err);
+    return null;
+  }
+}
+
+/**
+ * users/{userId} 에 사용자 프로필 정보를 저장(upsert)합니다.
+ */
+export async function saveUserProfile(
+  userId: string,
+  profile: ProfileInfo,
+  extraMeta?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const cleanProfile: Record<string, unknown> = {};
+    Object.entries(profile).forEach(([k, v]) => {
+      if (v !== undefined) cleanProfile[k] = v;
+    });
+
+    await setDoc(
+      userDocRef(userId),
+      {
+        profile: cleanProfile,
+        updatedAt: serverTimestamp(),
+        ...(extraMeta || {}),
+      },
+      { merge: true },
+    );
+  } catch (err) {
+    console.error('[Firestore] saveUserProfile 오류:', err);
+    throw err;
+  }
+}
 
 // ─────────────────────────────────────────────
 // 프로필 전체 저장 (기존 호환 유지)
@@ -249,7 +310,27 @@ export async function getLinks(
 }
 
 /**
- * user/{userId}/links 를 실시간 구독(onSnapshot)하여 변경 시 최신순으로 콜백 호출
+ * 신규 유저에게 기본 링크 템플릿을 생성해주는 헬퍼
+ */
+export async function initUserDefaultLinks(
+  userId: string,
+  categories: { id: string; items: LinkItem[] }[],
+): Promise<void> {
+  try {
+    for (const cat of categories) {
+      for (const item of cat.items) {
+        const { id, ...itemWithoutId } = item;
+        void id;
+        await addLink(userId, cat.id, itemWithoutId);
+      }
+    }
+  } catch (err) {
+    console.error('[Firestore] initUserDefaultLinks 오류:', err);
+  }
+}
+
+/**
+ * users/{userId}/links 를 실시간 구독(onSnapshot)하여 변경 시 최신순으로 콜백 호출
  */
 export function subscribeLinks(
   userId = 'anonymous',

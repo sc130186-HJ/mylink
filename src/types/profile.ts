@@ -36,6 +36,7 @@ export interface ProfileInfo {
   role: string;
   bio: string;
   avatarUrl?: string;
+  email?: string;
   statusMessage?: string;
 }
 

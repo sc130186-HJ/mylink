@@ -30,8 +30,6 @@ import {
   MAX_TITLE_LENGTH,
   MAX_SUBTITLE_LENGTH,
   MAX_BADGE_LENGTH,
-  isValidWebUrl,
-  isValidEmail,
   validateTitle,
   validateSubtitle,
   validateUrl,

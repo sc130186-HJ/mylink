@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import defaultData from "@/data/mockData.json";
-import { ProfileData, LinkItem } from "@/types/profile";
+import { ProfileData, LinkItem, ProfileInfo } from "@/types/profile";
 import { TopBar } from "@/components/profile/TopBar";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { CategorySection } from "@/components/profile/CategorySection";
@@ -10,31 +10,33 @@ import { QrModal } from "@/components/profile/QrModal";
 import { Toast } from "@/components/profile/Toast";
 import { AddLinkModal } from "@/components/profile/AddLinkModal";
 import { DeleteLinkModal } from "@/components/profile/DeleteLinkModal";
-import { Loader2 } from "lucide-react";
+import { AuthGuide } from "@/components/profile/AuthGuide";
+import { Loader2, Sparkles, LogIn } from "lucide-react";
 import {
-  getProfile,
-  saveProfile,
+  getUserProfile,
+  saveUserProfile,
   addLink,
   updateLink,
   deleteLink,
   getLinks,
   subscribeLinks,
+  initUserDefaultLinks,
   FirestoreLinkResult,
 } from "@/lib/firestore";
-
-const USER_ID = "anonymous";
-const STORAGE_KEY = "mylink_profile_data";
-const PROFILE_ID = "default";
-const DELETED_IDS_KEY = "mylink_deleted_link_ids";
+import { loginWithGoogle, logout, onAuthChange, User } from "@/lib/auth";
 
 export default function Home() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const [data, setData] = useState<ProfileData>(defaultData as ProfileData);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [isAddLinkOpen, setIsAddLinkOpen] = useState(false);
   const [targetCategoryId, setTargetCategoryId] = useState<string | undefined>(undefined);
   const [currentUrl, setCurrentUrl] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [loadingText, setLoadingText] = useState("링크 목록을 불러오는 중이에요...");
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -48,19 +50,31 @@ export default function Home() {
 
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 삭제된 아이콘/링크 ID 목록 로컬스토리지 초기화
-  useEffect(() => {
-    try {
-      const savedDeleted = localStorage.getItem(DELETED_IDS_KEY);
-      if (savedDeleted) {
-        const parsed = JSON.parse(savedDeleted);
-        if (Array.isArray(parsed)) {
-          setDeletedIds(new Set(parsed));
-        }
-      }
-    } catch {
-      // 로컬 스토리지 읽기 에러 방어
+  // 토스트 메시지 표시 (2.4초 자동 소멸)
+  const showToast = useCallback((message: string) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
     }
+    setToastMessage(message);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 2400);
+  }, []);
+
+  // 1. Firebase Auth 상태 변화 감지 리스너
+  useEffect(() => {
+    queueMicrotask(() => {
+      setCurrentUrl(window.location.href);
+    });
+
+    const unsubscribeAuth = onAuthChange((currentUser) => {
+      setUser(currentUser);
+      setIsAuthLoading(false);
+    });
+
+    return () => {
+      unsubscribeAuth();
+    };
   }, []);
 
   // Firestore에서 가져온 링크 목록(createdAt 최신순)을 카테고리별로 반영하는 함수
@@ -92,136 +106,167 @@ export default function Home() {
           categoryMap.set(targetId, current);
         }
 
-        const firestoreIds = new Set(validRemote.map((r) => r.item.id));
-        const typedDefaultCategories = (defaultData as ProfileData).categories;
-
         const updatedCategories = source.categories.map((cat) => {
           const firestoreItems = categoryMap.get(cat.id) || [];
-          // 기본 mock / 기존 아이템 중 삭제되지 않았고 Firestore와 중복되지 않는 것들은 뒤에 유지
-          const baseItems = (
-            typedDefaultCategories.find((c) => c.id === cat.id)?.items || cat.items
-          ).filter(
-            (item) => !firestoreIds.has(item.id) && !activeDeletedIds.has(item.id),
-          );
-
           return {
             ...cat,
-            items: [...firestoreItems, ...baseItems],
+            items: firestoreItems,
           };
         });
 
-        const updatedData: ProfileData = {
+        return {
           ...source,
           categories: updatedCategories,
         };
-
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
-        } catch {
-          // 로컬 스토리지 에러 방어
-        }
-
-        return updatedData;
       });
     },
     [deletedIds],
   );
 
-  // 1. 페이지 로드 시 Firestore(user/anonymous/links)에서 링크 불러오기 & 실시간 구독
+  // 2. 로그인 유저에 따른 Firestore (users/{user.uid} 및 users/{user.uid}/links) 개인화 동기화
   useEffect(() => {
-    queueMicrotask(() => {
-      setCurrentUrl(window.location.href);
-    });
+    if (isAuthLoading) return;
 
-    // 1-1) 프로필 메타데이터 초기화 (Firestore profiles 또는 localStorage)
-    const initProfile = async () => {
-      setLoadingText("링크 목록을 불러오는 중이에요...");
+    if (!user) {
+      return;
+    }
+
+    const uid = user.uid;
+    const userStorageKey = `mylink_profile_${uid}`;
+    const userDeletedKey = `mylink_deleted_${uid}`;
+
+    let unsubscribeLinks: (() => void) | null = null;
+
+    const initUserData = async () => {
+      setLoadingText("내 링크 목록을 불러오는 중이에요...");
       setIsLoading(true);
 
-      let loadedDeletedIds = new Set<string>();
+      // 로컬스토리지에서 유저별 삭제 목록 복원
+      let activeDeleted = new Set<string>();
       try {
-        const savedDeleted = localStorage.getItem(DELETED_IDS_KEY);
+        const savedDeleted = localStorage.getItem(userDeletedKey);
         if (savedDeleted) {
           const parsed = JSON.parse(savedDeleted);
           if (Array.isArray(parsed)) {
-            loadedDeletedIds = new Set(parsed);
-            setDeletedIds(loadedDeletedIds);
+            activeDeleted = new Set(parsed);
           }
         }
       } catch {}
+      setDeletedIds(activeDeleted);
 
       try {
-        const remote = await getProfile(PROFILE_ID);
-        if (remote?.profile && remote?.categories) {
-          setData(remote);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
+        // 2-1) users/{user.uid} 프로필 정보 로드 또는 신규 프로필 생성
+        const remoteProfile = await getUserProfile(uid);
+
+        let currentProfile: ProfileInfo;
+        if (remoteProfile) {
+          currentProfile = {
+            ...remoteProfile,
+            avatarUrl: remoteProfile.avatarUrl || user.photoURL || undefined,
+            name: remoteProfile.name || user.displayName || "내 링크",
+            email: user.email || remoteProfile.email,
+          };
         } else {
-          const saved = localStorage.getItem(STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (parsed?.profile && parsed?.categories) {
-              setData(parsed);
-            }
-          }
+          currentProfile = {
+            name: user.displayName || "내 링크",
+            role: "크리에이터",
+            bio: "반갑습니다! 나만의 소셜 링크를 모아두는 공간입니다 ✨",
+            avatarUrl: user.photoURL || undefined,
+            email: user.email || undefined,
+            statusMessage: "온라인 · 환영합니다!",
+          };
+          await saveUserProfile(uid, currentProfile, {
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+          }).catch((err) => console.warn("프로필 초기 저장 실패:", err));
         }
-      } catch {
-        // 폴백 기본 데이터 유지
-      }
 
-      // 1-2) 단발성 Firestore 링크 즉시 조회 (createdAt 기준 최신순 정렬)
-      try {
-        const initialLinks = await getLinks(USER_ID);
-        if (initialLinks.length > 0) {
-          applyRemoteLinks(initialLinks, undefined, loadedDeletedIds);
+        // 2-2) users/{user.uid}/links 링크 목록 조회
+        const initialLinks = await getLinks(uid);
+
+        const initialCategories = (defaultData as ProfileData).categories.map((c) => ({
+          ...c,
+          items: [],
+        }));
+
+        if (initialLinks.length === 0) {
+          // 신규 유저 첫 가입 시: 기본 템플릿 링크들을 users/{uid}/links에 생성하여 채워줌
+          setLoadingText("나만의 맞춤 링크 템플릿을 생성하는 중이에요...");
+          await initUserDefaultLinks(uid, (defaultData as ProfileData).categories);
+          const seededLinks = await getLinks(uid);
+          setData({
+            profile: currentProfile,
+            categories: (defaultData as ProfileData).categories,
+            footer: (defaultData as ProfileData).footer,
+          });
+          applyRemoteLinks(seededLinks, {
+            profile: currentProfile,
+            categories: (defaultData as ProfileData).categories,
+            footer: (defaultData as ProfileData).footer,
+          }, activeDeleted);
+        } else {
+          const baseData: ProfileData = {
+            profile: currentProfile,
+            categories: initialCategories,
+            footer: (defaultData as ProfileData).footer,
+          };
+          setData(baseData);
+          applyRemoteLinks(initialLinks, baseData, activeDeleted);
         }
+
+        try {
+          localStorage.setItem(userStorageKey, JSON.stringify(currentProfile));
+        } catch {}
       } catch (err) {
-        console.error("초기 링크 로드 오류:", err);
+        console.error("유저 데이터 로드 오류:", err);
       } finally {
         setIsLoading(false);
       }
+
+      // 2-3) users/{user.uid}/links 경로 실시간 리스너 연결
+      unsubscribeLinks = subscribeLinks(uid, (latestLinks) => {
+        applyRemoteLinks(latestLinks);
+      });
     };
 
-    initProfile();
-
-    // 1-3) Firestore 경로 user/anonymous/links 실시간 구독 (생성/변경 시 즉시 갱신)
-    const unsubscribe = subscribeLinks(USER_ID, (latestLinks) => {
-      if (latestLinks.length > 0) {
-        applyRemoteLinks(latestLinks);
-      }
-    });
+    initUserData();
 
     return () => {
-      unsubscribe();
+      if (unsubscribeLinks) {
+        unsubscribeLinks();
+      }
     };
-  }, [applyRemoteLinks]);
+  }, [user, isAuthLoading, applyRemoteLinks]);
 
-  // 토스트 메시지 띄우기 (2.4초 자동 소멸 - PRD 규격)
-  const showToast = (message: string) => {
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
+  // 구글 소셜 로그인 실행
+  const handleGoogleLogin = async () => {
+    setIsLoggingIn(true);
+    try {
+      const loggedUser = await loginWithGoogle();
+      showToast(`${loggedUser.displayName || "사용자"}님, 반갑습니다! ✨`);
+    } catch (err: unknown) {
+      const authError = err as { code?: string; message?: string };
+      if (authError.code === "auth/popup-closed-by-user") {
+        showToast("로그인 창이 닫혔어요.");
+      } else {
+        console.error("로그인 실패:", err);
+        showToast("구글 로그인 중 문제가 발생했어요. 다시 시도해 주세요.");
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
-    setToastMessage(message);
-    toastTimeoutRef.current = setTimeout(() => {
-      setToastMessage(null);
-    }, 2400);
   };
 
-  // 기본 데이터 초기화
-  const handleResetData = async () => {
-    setLoadingText("기본 데이터로 초기화하는 중이에요...");
-    setIsUpdating(true);
+  // 로그아웃 실행
+  const handleLogout = async () => {
     try {
-      const reset = defaultData as ProfileData;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(reset));
-      localStorage.removeItem(DELETED_IDS_KEY);
-      setDeletedIds(new Set());
-      setData(reset);
-      await saveProfile(PROFILE_ID, reset).catch(() => {});
-      showToast("기본 데이터로 초기화되었어요 🔄");
-    } catch {
-      showToast("데이터 초기화에 실패했어요");
-    } finally {
-      setIsUpdating(false);
+      await logout();
+      setData(defaultData as ProfileData);
+      showToast("안전하게 로그아웃되었어요 👋");
+    } catch (err) {
+      console.error("로그아웃 실패:", err);
+      showToast("로그아웃에 실패했어요.");
     }
   };
 
@@ -236,166 +281,86 @@ export default function Home() {
 
   // 링크 추가 모달 열기
   const handleOpenAddLink = (categoryId?: string) => {
+    if (!user) {
+      showToast("링크를 추가하려면 먼저 구글 로그인이 필요해요 🔒");
+      return;
+    }
     setTargetCategoryId(categoryId);
     setIsAddLinkOpen(true);
   };
 
-  // 2. 새 링크 추가 처리 (user/anonymous/links 저장 및 목록 최신순 즉시 갱신)
+  // 3. 새 링크 추가 처리 (users/{user.uid}/links 에 저장)
   const handleAddLink = async (categoryId: string, newItem: Omit<LinkItem, "id">) => {
+    if (!user) {
+      showToast("로그인 후 이용할 수 있어요 🔒");
+      return;
+    }
+
     setLoadingText("새 링크를 저장하고 목록을 갱신하는 중이에요...");
     setIsUpdating(true);
     try {
-      // 1) Firestore user/anonymous/links 경로에 추가 (createdAt: serverTimestamp)
-      await addLink(USER_ID, categoryId, newItem);
-
-      // 2) 최신 목록 조회 후 즉시 목록 갱신
-      const updatedList = await getLinks(USER_ID);
+      // Firestore users/{user.uid}/links 경로에 추가
+      await addLink(user.uid, categoryId, newItem);
+      const updatedList = await getLinks(user.uid);
       applyRemoteLinks(updatedList);
-
       showToast("새 링크가 추가되었어요 ✨");
     } catch (err) {
       console.error("Firestore 링크 추가 오류:", err);
-      // Firestore 네트워크/저장 오류 시 로컬 상태에 직접 추가 폴백
-      const fallbackItem: LinkItem = {
-        ...newItem,
-        id: `link-${Date.now()}`,
-      };
-
-      setData((prev) => {
-        const updatedCategories = prev.categories.map((category) => {
-          if (category.id === categoryId) {
-            return {
-              ...category,
-              items: [fallbackItem, ...category.items],
-            };
-          }
-          return category;
-        });
-
-        const updatedData = { ...prev, categories: updatedCategories };
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
-        } catch {}
-        return updatedData;
-      });
-
-      showToast("새 링크가 추가되었어요 ✨");
+      showToast("링크 추가에 실패했어요. 다시 시도해 주세요.");
     } finally {
       setIsUpdating(false);
     }
   };
 
-  // 3. 링크 인라인 수정 처리 (Firestore user/anonymous/links/{linkId} 업데이트)
+  // 4. 링크 인라인 수정 처리 (users/{user.uid}/links/{linkId} 업데이트)
   const handleUpdateLink = async (
     linkId: string,
     categoryId: string,
     updatedItem: Omit<LinkItem, "id">,
   ) => {
+    if (!user) {
+      showToast("로그인 후 이용할 수 있어요 🔒");
+      return;
+    }
+
     setLoadingText("링크를 수정하는 중이에요...");
     setIsUpdating(true);
     try {
-      // 1) Firestore user/anonymous/links/{linkId} 경로에 수정 반영 (merge: true)
-      await updateLink(USER_ID, linkId, categoryId, updatedItem);
-
-      // 2) 최신 링크 목록 재조회 및 즉시 반영
-      const updatedList = await getLinks(USER_ID);
+      await updateLink(user.uid, linkId, categoryId, updatedItem);
+      const updatedList = await getLinks(user.uid);
       applyRemoteLinks(updatedList);
-
-      // 3) 로컬 상태 즉각 동기화 (mock 데이터 및 빠른 반응성 보장)
-      const currentIsoTime = new Date().toISOString();
-      const itemWithUpdatedTime: LinkItem = {
-        ...updatedItem,
-        id: linkId,
-        updatedAt: updatedItem.updatedAt || currentIsoTime,
-      };
-
-      setData((prev) => {
-        const nextCategories = prev.categories.map((cat) => {
-          const hasItem = cat.items.some((it) => it.id === linkId);
-          if (hasItem) {
-            return {
-              ...cat,
-              items: cat.items.map((it) =>
-                it.id === linkId ? itemWithUpdatedTime : it,
-              ),
-            };
-          }
-          return cat;
-        });
-        const nextData = { ...prev, categories: nextCategories };
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
-        } catch {}
-        return nextData;
-      });
-
       showToast("링크가 수정되었어요 ✨");
     } catch (err) {
       console.error("Firestore 링크 수정 오류:", err);
-      // 네트워크 등 실패 시 로컬 상태라도 업데이트
-      const fallbackIsoTime = new Date().toISOString();
-      const fallbackItemWithTime: LinkItem = {
-        ...updatedItem,
-        id: linkId,
-        updatedAt: updatedItem.updatedAt || fallbackIsoTime,
-      };
-
-      setData((prev) => {
-        const nextCategories = prev.categories.map((cat) => ({
-          ...cat,
-          items: cat.items.map((it) =>
-            it.id === linkId ? fallbackItemWithTime : it,
-          ),
-        }));
-        const nextData = { ...prev, categories: nextCategories };
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
-        } catch {}
-        return nextData;
-      });
-      showToast("링크가 수정되었어요 ✨");
+      showToast("링크 수정에 실패했어요.");
     } finally {
       setIsUpdating(false);
     }
   };
 
-  // 4. 링크 삭제 확인 처리 (Firestore user/anonymous/links/{linkId} 삭제)
+  // 5. 링크 삭제 확인 처리 (users/{user.uid}/links/{linkId} 삭제)
   const handleConfirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !user) return;
 
     const { item } = deleteTarget;
     setIsDeleting(true);
 
     try {
-      // 1) Firestore user/anonymous/links/{linkId} 문서 삭제
-      await deleteLink(USER_ID, item.id);
+      await deleteLink(user.uid, item.id);
 
-      // 2) 삭제된 ID 기록 (mock 데이터 복구 방지 및 지속성 유지)
       const nextDeleted = new Set(deletedIds);
       nextDeleted.add(item.id);
       setDeletedIds(nextDeleted);
+
       try {
         localStorage.setItem(
-          DELETED_IDS_KEY,
+          `mylink_deleted_${user.uid}`,
           JSON.stringify(Array.from(nextDeleted)),
         );
       } catch {}
 
-      // 3) 최신 Firestore 목록 조회 및 로컬 상태에서 즉시 제거
-      const updatedList = await getLinks(USER_ID);
+      const updatedList = await getLinks(user.uid);
       applyRemoteLinks(updatedList, undefined, nextDeleted);
-
-      setData((prev) => {
-        const nextCategories = prev.categories.map((cat) => ({
-          ...cat,
-          items: cat.items.filter((it) => it.id !== item.id),
-        }));
-        const nextData = { ...prev, categories: nextCategories };
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
-        } catch {}
-        return nextData;
-      });
 
       showToast("링크가 삭제되었어요 🗑️");
       setDeleteTarget(null);
@@ -407,19 +372,52 @@ export default function Home() {
     }
   };
 
+  // 기본 데이터 초기화
+  const handleResetData = async () => {
+    if (!user) {
+      setData(defaultData as ProfileData);
+      showToast("기본 예시 데이터로 초기화되었어요 🔄");
+      return;
+    }
+
+    setLoadingText("기본 템플릿으로 초기화하는 중이에요...");
+    setIsUpdating(true);
+    try {
+      // 기존 삭제 기록 클리어
+      setDeletedIds(new Set());
+      try {
+        localStorage.removeItem(`mylink_deleted_${user.uid}`);
+      } catch {}
+
+      // 기본 템플릿 다시 시딩
+      await initUserDefaultLinks(user.uid, (defaultData as ProfileData).categories);
+      const updatedList = await getLinks(user.uid);
+      applyRemoteLinks(updatedList, undefined, new Set());
+      showToast("기본 템플릿 링크로 초기화되었어요 🔄");
+    } catch {
+      showToast("초기화 중 문제가 발생했어요.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#F9FAFB] text-[#191F28] flex flex-col justify-between relative">
+    <div className="min-h-screen bg-[#F9FAFB] text-[#191F28] flex flex-col justify-between relative selection:bg-blue-100">
       <div>
-        {/* 1. 상단 글로벌 네비게이션 바 */}
+        {/* 1. 상단 글로벌 네비게이션 바 (구글 로그인/로그아웃 탑재) */}
         <TopBar
+          user={user}
+          onLogin={handleGoogleLogin}
+          onLogout={handleLogout}
+          isAuthLoading={isAuthLoading}
           onReset={handleResetData}
           onOpenQr={() => setIsQrOpen(true)}
           onCopyPageUrl={handleCopyPageUrl}
-          onOpenAddLink={() => handleOpenAddLink()}
+          onOpenAddLink={user ? () => handleOpenAddLink() : undefined}
           isSyncing={isLoading || isUpdating}
         />
 
-        {/* 1-1. 업데이트/갱신 로딩 인디케이터 (상단 플로팅 캡슐) */}
+        {/* 1-1. 업데이트/동기화 로딩 인디케이터 (상단 플로팅 캡슐) */}
         {(isLoading || isUpdating) && (
           <div
             role="status"
@@ -432,34 +430,114 @@ export default function Home() {
         )}
 
         {/* 2. 메인 컨텐츠 영역 (모바일 최적화 뷰포트 max-w-md) */}
-        <main className="max-w-md mx-auto px-5 py-6 space-y-6">
-          {/* 프로필 헤더 */}
-          <ProfileHeader profile={data.profile} />
+        <main className="max-w-md mx-auto px-4 py-6 space-y-6">
+          {/* A. 로그인 여부에 따른 분기 화면 */}
+          {!user ? (
+            /* 비로그인 상태 화면: 설명 문구 및 로그인 유도 배너 */
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* 상단 설명 안내 컴포넌트 */}
+              <AuthGuide onLogin={handleGoogleLogin} isLoggingIn={isLoggingIn} />
 
-          {/* 카테고리별 링크 목록 섹션들 (수정 및 삭제 버튼 연동) */}
-          <div className="space-y-6">
-            {data.categories.map((category) => (
-              <CategorySection
-                key={category.id}
-                category={category}
-                onToast={showToast}
-                onAddLink={(catId) => handleOpenAddLink(catId)}
-                onUpdateLink={handleUpdateLink}
-                onDeleteLinkClick={(catId, item) =>
-                  setDeleteTarget({ categoryId: catId, item })
-                }
-              />
-            ))}
-          </div>
+              {/* 둘러보기 안내 배너 */}
+              <div className="flex items-center justify-between px-2 pt-2 text-xs font-semibold text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                  미리보기 화면 (로그인 후 내 링크로 변경)
+                </span>
+                <button
+                  type="button"
+                  onClick={handleGoogleLogin}
+                  className="text-blue-600 hover:underline flex items-center gap-1"
+                >
+                  <LogIn className="w-3 h-3" />
+                  로그인하기
+                </button>
+              </div>
+
+              {/* 샘플 프로필 미리보기 */}
+              <div className="opacity-75 pointer-events-none select-none filter blur-[0.3px] transition-all">
+                <ProfileHeader profile={data.profile} />
+                <div className="space-y-6 mt-4">
+                  {data.categories.map((category) => (
+                    <CategorySection
+                      key={category.id}
+                      category={category}
+                      onToast={showToast}
+                      onAddLink={() => handleOpenAddLink()}
+                      onUpdateLink={handleUpdateLink}
+                      onDeleteLinkClick={() => {}}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* B. 로그인 완료 상태: Firestore(users/{user.uid}/links) 개인화 화면 */
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* 유저 Firestore 경로 및 개인화 뱃지 */}
+              <div className="flex items-center justify-between px-2 text-xs text-slate-500 bg-blue-50/80 border border-blue-100 rounded-2xl py-2 px-3.5">
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                  <span className="truncate font-medium text-slate-700">
+                    {user.displayName || user.email} 님의 마이링크
+                  </span>
+                </div>
+                <span className="font-mono text-[10px] bg-white text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full shrink-0">
+                  users/{user.uid.slice(0, 6)}.../links
+                </span>
+              </div>
+
+              {/* 개인화된 유저 프로필 헤더 */}
+              <ProfileHeader profile={data.profile} />
+
+              {/* 카테고리별 개인 링크 목록 섹션들 (수정, 삭제, 추가 지원) */}
+              <div className="space-y-6">
+                {data.categories.every((c) => c.items.length === 0) ? (
+                  /* 등록된 링크가 없을 때 Empty State 안내 */
+                  <div className="bg-white rounded-3xl p-8 border border-slate-100 text-center space-y-3 shadow-xs">
+                    <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-500 mx-auto flex items-center justify-center">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-base font-bold text-[#191F28]">
+                      아직 등록된 링크가 없어요
+                    </h3>
+                    <p className="text-xs text-[#8B95A1] max-w-xs mx-auto leading-relaxed">
+                      상단의 [추가] 버튼을 누르거나 아래 버튼으로 내 GitHub, 블로그, SNS 링크를 등록해보세요!
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAddLink()}
+                      className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#3182F6] hover:bg-[#2272EB] text-white text-xs font-semibold transition active:scale-95 cursor-pointer shadow-sm"
+                    >
+                      첫 링크 등록하기
+                    </button>
+                  </div>
+                ) : (
+                  data.categories.map((category) => (
+                    <CategorySection
+                      key={category.id}
+                      category={category}
+                      onToast={showToast}
+                      onAddLink={(catId) => handleOpenAddLink(catId)}
+                      onUpdateLink={handleUpdateLink}
+                      onDeleteLinkClick={(catId, item) =>
+                        setDeleteTarget({ categoryId: catId, item })
+                      }
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </main>
       </div>
 
       {/* 3. 푸터 */}
       <footer className="max-w-md mx-auto px-5 py-8 text-center text-[12px] text-[#8B95A1] space-y-1">
         <p className="font-medium text-[#4E5968]">{data.footer.copyright}</p>
-        {data.footer.poweredBy && (
-          <p className="text-[11px] text-[#B0B8C1]">{data.footer.poweredBy}</p>
-        )}
+        <p className="text-[11px] text-[#B0B8C1]">
+          {user ? `Firebase Cloud Synced · UID: ${user.uid.slice(0, 8)}` : (data.footer.poweredBy || "MyLink")}
+        </p>
       </footer>
 
       {/* 4. 링크 추가 다이얼로그 모달 */}
