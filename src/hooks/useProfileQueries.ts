@@ -16,6 +16,7 @@ import {
   addLink,
   updateLink,
   deleteLink,
+  incrementLinkClickCount,
   subscribeLinks,
   FirestoreLinkResult,
   UserSearchResult,
@@ -181,6 +182,49 @@ export function useUpdateProfileMutation(
   });
 }
 
+function getLocalClickMap(uid: string): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(`mylink_clicks_${uid}`);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalClickCount(uid: string, linkId: string, count: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getLocalClickMap(uid);
+    current[linkId] = Math.max(current[linkId] || 0, count);
+    localStorage.setItem(`mylink_clicks_${uid}`, JSON.stringify(current));
+  } catch {}
+}
+
+function mergeWithLocalClicks(
+  uid: string,
+  links: FirestoreLinkResult[]
+): FirestoreLinkResult[] {
+  const localClicks = getLocalClickMap(uid);
+  return links.map((entry) => {
+    const remoteCount = entry.item.clickCount ?? 0;
+    const localCount = localClicks[entry.item.id] ?? 0;
+    const mergedCount = Math.max(remoteCount, localCount);
+    if (mergedCount > localCount && mergedCount > 0) {
+      saveLocalClickCount(uid, entry.item.id, mergedCount);
+    }
+    return {
+      ...entry,
+      item: {
+        ...entry.item,
+        clickCount: mergedCount,
+      },
+    };
+  });
+}
+
 /**
  * 3. 유저 링크 목록 조회 Query + 실시간 구독 동기화
  * - 사용자가 직접 추가한 링크만 표시하며, 임의의 기본 템플릿 링크는 자동 생성하지 않음
@@ -199,7 +243,8 @@ export function useUserLinksQuery(
     enabled: !!uid,
     queryFn: async (): Promise<FirestoreLinkResult[]> => {
       if (!uid) return [];
-      return await getLinks(uid);
+      const remote = await getLinks(uid);
+      return mergeWithLocalClicks(uid, remote);
     },
   });
 
@@ -209,7 +254,7 @@ export function useUserLinksQuery(
     const unsubscribe = subscribeLinks(uid, (latestLinks) => {
       queryClient.setQueryData<FirestoreLinkResult[]>(
         profileKeys.userLinks(uid),
-        latestLinks
+        mergeWithLocalClicks(uid, latestLinks)
       );
     });
     return () => {
@@ -243,7 +288,8 @@ export function useAddLinkMutation(
     }) => {
       if (!uid) throw new Error("로그인이 필요합니다.");
       await addLink(uid, categoryId, newItem);
-      return await getLinks(uid);
+      const remote = await getLinks(uid);
+      return mergeWithLocalClicks(uid, remote);
     },
     onSuccess: (updatedList) => {
       queryClient.setQueryData<FirestoreLinkResult[]>(queryKey, updatedList);
@@ -280,7 +326,8 @@ export function useUpdateLinkMutation(
     }) => {
       if (!uid) throw new Error("로그인이 필요합니다.");
       await updateLink(uid, linkId, categoryId, updatedItem);
-      return await getLinks(uid);
+      const remote = await getLinks(uid);
+      return mergeWithLocalClicks(uid, remote);
     },
     onSuccess: (updatedList) => {
       queryClient.setQueryData<FirestoreLinkResult[]>(queryKey, updatedList);
@@ -309,7 +356,8 @@ export function useDeleteLinkMutation(
     mutationFn: async (linkId: string) => {
       if (!uid) throw new Error("로그인이 필요합니다.");
       await deleteLink(uid, linkId);
-      const updatedList = await getLinks(uid);
+      const remote = await getLinks(uid);
+      const updatedList = mergeWithLocalClicks(uid, remote);
       return { linkId, updatedList };
     },
     onSuccess: ({ linkId, updatedList }) => {
@@ -338,7 +386,8 @@ export function useResetLinksMutation(
   return useMutation({
     mutationFn: async () => {
       if (!uid) throw new Error("로그인이 필요합니다.");
-      return await getLinks(uid);
+      const remote = await getLinks(uid);
+      return mergeWithLocalClicks(uid, remote);
     },
     onSuccess: (updatedList) => {
       queryClient.setQueryData<FirestoreLinkResult[]>(queryKey, updatedList);
@@ -346,6 +395,47 @@ export function useResetLinksMutation(
     },
     onError: (err) => {
       callbacks?.onError?.(err);
+    },
+  });
+}
+
+/**
+ * 8. 링크 클릭 카운트 증가 Mutation (낙관적 업데이트 + Firestore & 로컬 저장)
+ */
+export function useIncrementLinkClickMutation(uid: string | undefined) {
+  const queryClient = useQueryClient();
+  const resolvedUid = uid || DEFAULT_OWNER_UID;
+  const queryKey = profileKeys.userLinks(resolvedUid);
+
+  return useMutation({
+    mutationFn: async (linkId: string) => {
+      await incrementLinkClickCount(resolvedUid, linkId);
+    },
+    onMutate: async (linkId: string) => {
+      const previousLinks =
+        queryClient.getQueryData<FirestoreLinkResult[]>(queryKey);
+
+      if (previousLinks) {
+        const updatedLinks = previousLinks.map((entry) => {
+          if (entry.item.id !== linkId) return entry;
+          const nextCount = (entry.item.clickCount ?? 0) + 1;
+          saveLocalClickCount(resolvedUid, linkId, nextCount);
+          return {
+            ...entry,
+            item: {
+              ...entry.item,
+              clickCount: nextCount,
+            },
+          };
+        });
+        queryClient.setQueryData<FirestoreLinkResult[]>(queryKey, updatedLinks);
+      } else {
+        const localMap = getLocalClickMap(resolvedUid);
+        saveLocalClickCount(resolvedUid, linkId, (localMap[linkId] ?? 0) + 1);
+      }
+
+      await queryClient.cancelQueries({ queryKey });
+      return { previousLinks };
     },
   });
 }

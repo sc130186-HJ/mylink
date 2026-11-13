@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ProfileInfo } from "@/types/profile";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, ExternalLink } from "lucide-react";
+import { Pencil, ExternalLink, Eye } from "lucide-react";
 
 interface ProfileHeaderProps {
   profile: ProfileInfo;
@@ -15,6 +15,8 @@ interface ProfileHeaderProps {
   onEditProfile?: () => void;
   /** 내 페이지로 바로가기 버튼 노출 여부 */
   showMyPageButton?: boolean;
+  /** 클릭(조회) 수 (0이어도 아이콘과 숫자만 표시) */
+  totalClickCount?: number;
 }
 
 export function ProfileHeader({
@@ -22,6 +24,7 @@ export function ProfileHeader({
   isOwner = false,
   onEditProfile,
   showMyPageButton = false,
+  totalClickCount = 0,
 }: ProfileHeaderProps) {
   const [imgError, setImgError] = useState(false);
 
@@ -59,14 +62,18 @@ export function ProfileHeader({
         )}
       </div>
 
-      {/* 이름 및 직무 뱃지 (shadcn/ui Badge 재사용) */}
-      <div className="mt-4 flex items-center justify-center gap-2">
+      {/* 이름 및 직무 뱃지 + 조회수(아이콘+숫자만 표시, 0이어도 표시) */}
+      <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
         <h1 className="text-xl font-bold tracking-tight text-[#191F28]">
           {profile.name}
         </h1>
         <Badge variant="brand" shape="pill">
           {profile.role}
         </Badge>
+        <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#E8F3FF] text-[#3182F6] text-[12px] font-bold tabular-nums border border-blue-200">
+          <Eye className="w-3.5 h-3.5 text-[#3182F6] shrink-0" />
+          <span>{(totalClickCount ?? 0).toLocaleString()}</span>
+        </div>
       </div>
 
       {/* 상태 메시지 또는 이메일 태그 */}

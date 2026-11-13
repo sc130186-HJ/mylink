@@ -23,6 +23,7 @@ import {
   useUpdateLinkMutation,
   useDeleteLinkMutation,
   useResetLinksMutation,
+  useIncrementLinkClickMutation,
 } from "@/hooks/useProfileQueries";
 
 export default function Home() {
@@ -177,6 +178,16 @@ export default function Home() {
     },
   });
 
+  // 링크 클릭 카운트 증가 (낙관적 업데이트 + Firestore 저장)
+  const incrementLinkClickMutation = useIncrementLinkClickMutation(activeUid);
+
+  const handleLinkClick = useCallback(
+    (linkId: string) => {
+      incrementLinkClickMutation.mutate(linkId);
+    },
+    [incrementLinkClickMutation]
+  );
+
   // ─────────────────────────────────────────────
   // 파생 데이터 조합 (프로필 + 카테고리별 링크)
   // ─────────────────────────────────────────────
@@ -223,6 +234,14 @@ export default function Home() {
   }, [user, profileQuery.data, linksQuery.data, deletedIds]);
 
   const isLoading = profileQuery.isLoading || linksQuery.isLoading;
+  const totalClickCount = useMemo(() => {
+    return data.categories.reduce(
+      (sum, cat) =>
+        sum +
+        cat.items.reduce((catSum, item) => catSum + (item.clickCount ?? 0), 0),
+      0
+    );
+  }, [data.categories]);
   const isUpdating =
     addLinkMutation.isPending ||
     updateLinkMutation.isPending ||
@@ -396,6 +415,7 @@ export default function Home() {
               isOwner={!!user}
               onEditProfile={user ? () => setIsEditProfileOpen(true) : undefined}
               showMyPageButton={!!user}
+              totalClickCount={totalClickCount}
             />
 
             {/* 카테고리별 개인 링크 목록 섹션들 (로그인 시 수정, 삭제, 추가 지원) */}
@@ -442,6 +462,7 @@ export default function Home() {
                       key={category.id}
                       category={category}
                       onToast={showToast}
+                      onLinkClick={handleLinkClick}
                       onAddLink={
                         user ? (catId) => handleOpenAddLink(catId) : undefined
                       }

@@ -23,6 +23,7 @@ import {
   useUpdateLinkMutation,
   useDeleteLinkMutation,
   useResetLinksMutation,
+  useIncrementLinkClickMutation,
 } from "@/hooks/useProfileQueries";
 
 export default function UserDisplayNamePage() {
@@ -187,6 +188,17 @@ export default function UserDisplayNamePage() {
     },
   });
 
+  // 링크 클릭 카운트 증가 (낙관적 업데이트 + Firestore 저장)
+  const incrementLinkClickMutation = useIncrementLinkClickMutation(targetUserId);
+
+  const handleLinkClick = useCallback(
+    (linkId: string) => {
+      if (!targetUserId) return;
+      incrementLinkClickMutation.mutate(linkId);
+    },
+    [targetUserId, incrementLinkClickMutation]
+  );
+
   // ─────────────────────────────────────────────
   // 파생 데이터 조합 (프로필 + users/{userId}/links)
   // ─────────────────────────────────────────────
@@ -329,6 +341,14 @@ export default function UserDisplayNamePage() {
   };
 
   const isInitialSearching = userByNameQuery.isLoading;
+  const totalClickCount = useMemo(() => {
+    return data.categories.reduce(
+      (sum, cat) =>
+        sum +
+        cat.items.reduce((catSum, item) => catSum + (item.clickCount ?? 0), 0),
+      0
+    );
+  }, [data.categories]);
   const isLinksLoading = !!targetUserId && linksQuery.isLoading;
   const isUpdating =
     addLinkMutation.isPending ||
@@ -411,6 +431,7 @@ export default function UserDisplayNamePage() {
                 onEditProfile={
                   isOwner ? () => setIsEditProfileOpen(true) : undefined
                 }
+                totalClickCount={totalClickCount}
               />
 
               {/* 카테고리별 링크 목록 (users/{userId}/links) */}
@@ -446,6 +467,7 @@ export default function UserDisplayNamePage() {
                         key={category.id}
                         category={category}
                         onToast={showToast}
+                        onLinkClick={handleLinkClick}
                         onAddLink={
                           isOwner ? (catId) => handleOpenAddLink(catId) : undefined
                         }

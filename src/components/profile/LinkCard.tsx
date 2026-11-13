@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Loader2,
   Check,
+  Eye,
 } from "lucide-react";
 import {
   MAX_TITLE_LENGTH,
@@ -33,6 +34,7 @@ import {
 interface LinkCardProps {
   item: LinkItem;
   onToast: (msg: string) => void;
+  onLinkClick?: (linkId: string) => void;
   onUpdate?: (
     linkId: string,
     updatedItem: Omit<LinkItem, "id">,
@@ -154,6 +156,7 @@ function formatUpdatedAt(isoString?: string): string | null {
 export function LinkCard({
   item,
   onToast,
+  onLinkClick,
   onUpdate,
   onDeleteClick,
 }: LinkCardProps) {
@@ -328,6 +331,7 @@ export function LinkCard({
           : undefined,
         isCopyAction: editIsCopyAction || undefined,
         updatedAt: new Date().toISOString(),
+        clickCount: item.clickCount ?? 0,
       });
       setIsEditing(false);
     } catch {
@@ -599,6 +603,7 @@ export function LinkCard({
   const isCopy = item.isCopyAction;
 
   const handleClick = (e: React.MouseEvent) => {
+    onLinkClick?.(item.id);
     if (isCopy) {
       e.preventDefault();
       const textToCopy = item.url.replace(/^mailto:/, "");
@@ -650,8 +655,14 @@ export function LinkCard({
         </div>
       </div>
 
-      {/* 우측: 수정/삭제 버튼 (항상 표시!) + 액션 표시 */}
+      {/* 우측: 조회수(아이콘+숫자) + 수정/삭제 버튼 (항상 표시!) + 액션 표시 */}
       <div className="shrink-0 flex items-center gap-1">
+        {/* 조회수 (텍스트 없이 아이콘과 숫자만 표시, 0이어도 표시) */}
+        <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E8F3FF] text-[#3182F6] border border-blue-200 text-[12px] font-bold tabular-nums mr-0.5">
+          <Eye className="w-3.5 h-3.5 text-[#3182F6] shrink-0" />
+          <span>{(item.clickCount ?? 0).toLocaleString()}</span>
+        </div>
+
         {/* 수정 버튼 (항상 표시) */}
         {onUpdate && (
           <button
@@ -712,6 +723,7 @@ export function LinkCard({
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={handleClick}
       className="block w-full text-left"
     >
       <Card pressable>{CardInner}</Card>

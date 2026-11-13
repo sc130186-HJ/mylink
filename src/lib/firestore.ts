@@ -17,6 +17,7 @@ import {
   getDoc,
   setDoc,
   addDoc,
+  updateDoc,
   deleteDoc,
   getDocs,
   collection,
@@ -25,6 +26,7 @@ import {
   where,
   onSnapshot,
   serverTimestamp,
+  increment,
   writeBatch,
   FirestoreError,
 } from 'firebase/firestore';
@@ -62,6 +64,34 @@ function isLegacyMockLink(data: Record<string, unknown>): boolean {
 }
 
 const purgingDocIds = new Set<string>();
+const initializingClickCountDocIds = new Set<string>();
+
+async function ensureClickCountFieldInFirestore(
+  userId: string,
+  docIds: string[],
+): Promise<void> {
+  if (!docIds.length) return;
+  if (!auth.currentUser || auth.currentUser.uid !== userId) return;
+
+  const targetIds = docIds.filter((id) => !initializingClickCountDocIds.has(id));
+  if (!targetIds.length) return;
+  targetIds.forEach((id) => initializingClickCountDocIds.add(id));
+
+  try {
+    const batch = writeBatch(db);
+    targetIds.forEach((linkId) => {
+      batch.set(
+        doc(db, USER_COLLECTION, userId, 'links', linkId),
+        { clickCount: 0 },
+        { merge: true },
+      );
+    });
+    await batch.commit();
+  } catch (err) {
+    targetIds.forEach((id) => initializingClickCountDocIds.delete(id));
+    console.warn('[Firestore] clickCount 초기값(0) 동기화 중 오류:', err);
+  }
+}
 
 async function purgeLegacyMockLinks(userId: string, docIds: string[]): Promise<void> {
   if (!docIds.length) return;
@@ -203,7 +233,9 @@ export async function getUserByDisplayName(
 
     if (snap.empty) return null;
 
-    const docSnap = snap.docs[0];
+    const docSnap =
+      snap.docs.find((d) => auth.currentUser && d.id === auth.currentUser.uid) ||
+      snap.docs[0];
     const data = docSnap.data();
     const rawProfile = (data.profile || {}) as Partial<ProfileInfo>;
 
@@ -297,6 +329,7 @@ export async function addLink(
     const cleanItem: Record<string, unknown> = {
       categoryId,
       isUserCreated: true,
+      clickCount: 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -351,6 +384,37 @@ export async function updateLink(
 }
 
 /**
+ * user/{userId}/links/{linkId} 의 링크 클릭 카운트(clickCount)를 1 증가시킵니다.
+ * @param userId 사용자 ID (기본값: 'anonymous')
+ * @param linkId 클릭된 링크 문서 ID
+ */
+export async function incrementLinkClickCount(
+  userId = 'anonymous',
+  linkId: string,
+): Promise<void> {
+  try {
+    const docRef = doc(db, USER_COLLECTION, userId, 'links', linkId);
+    try {
+      await updateDoc(docRef, {
+        clickCount: increment(1),
+      });
+    } catch {
+      await setDoc(
+        docRef,
+        {
+          clickCount: increment(1),
+        },
+        { merge: true },
+      );
+    }
+  } catch (err) {
+    const firestoreError = err as FirestoreError;
+    console.warn('[Firestore] incrementLinkClickCount 오류:', firestoreError.message);
+    throw firestoreError;
+  }
+}
+
+/**
  * user/{userId}/links/{linkId} 의 링크 아이템을 삭제합니다.
  * @param userId 사용자 ID (기본값: 'anonymous')
  * @param linkId 삭제할 링크 문서 ID
@@ -381,6 +445,7 @@ export async function getLinks(
     const q = query(linksRef(userId), orderBy('createdAt', 'desc'));
     const snap = await getDocs(q);
     const legacyIds: string[] = [];
+    const missingClickCountIds: string[] = [];
     const results: FirestoreLinkResult[] = [];
 
     for (const d of snap.docs) {
@@ -388,6 +453,9 @@ export async function getLinks(
       if (isLegacyMockLink(data)) {
         legacyIds.push(d.id);
         continue;
+      }
+      if (typeof data.clickCount !== 'number') {
+        missingClickCountIds.push(d.id);
       }
       const categoryId = (data.categoryId as string) || 'channels';
       const createdAt = data.createdAt;
@@ -405,12 +473,16 @@ export async function getLinks(
           badge: data.badge,
           isCopyAction: data.isCopyAction,
           updatedAt: formatToIsoString(updatedAt),
+          clickCount: typeof data.clickCount === 'number' ? data.clickCount : 0,
         } as LinkItem,
       });
     }
 
     if (legacyIds.length > 0) {
       void purgeLegacyMockLinks(userId, legacyIds);
+    }
+    if (missingClickCountIds.length > 0) {
+      void ensureClickCountFieldInFirestore(userId, missingClickCountIds);
     }
 
     return results;
@@ -443,6 +515,7 @@ export async function getLinks(
             badge: data.badge,
             isCopyAction: data.isCopyAction,
             updatedAt: formatToIsoString(updatedAt),
+            clickCount: typeof data.clickCount === 'number' ? data.clickCount : 0,
           } as LinkItem,
         });
       }
@@ -490,6 +563,7 @@ export function subscribeLinks(
       q,
       (snapshot) => {
         const legacyIds: string[] = [];
+        const missingClickCountIds: string[] = [];
         const list: FirestoreLinkResult[] = [];
 
         for (const d of snapshot.docs) {
@@ -497,6 +571,9 @@ export function subscribeLinks(
           if (isLegacyMockLink(data)) {
             legacyIds.push(d.id);
             continue;
+          }
+          if (typeof data.clickCount !== 'number') {
+            missingClickCountIds.push(d.id);
           }
           const categoryId = (data.categoryId as string) || 'channels';
           const createdAt = data.createdAt;
@@ -514,12 +591,16 @@ export function subscribeLinks(
               badge: data.badge,
               isCopyAction: data.isCopyAction,
               updatedAt: formatToIsoString(updatedAt),
+              clickCount: typeof data.clickCount === 'number' ? data.clickCount : 0,
             } as LinkItem,
           });
         }
 
         if (legacyIds.length > 0) {
           void purgeLegacyMockLinks(userId, legacyIds);
+        }
+        if (missingClickCountIds.length > 0) {
+          void ensureClickCountFieldInFirestore(userId, missingClickCountIds);
         }
 
         onUpdate(list);

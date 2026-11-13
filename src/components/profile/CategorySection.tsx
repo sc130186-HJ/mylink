@@ -8,6 +8,7 @@ import { Plus } from "lucide-react";
 interface CategorySectionProps {
   category: LinkCategory;
   onToast: (msg: string) => void;
+  onLinkClick?: (linkId: string) => void;
   onAddLink?: (categoryId: string) => void;
   onUpdateLink?: (
     linkId: string,
@@ -20,6 +21,7 @@ interface CategorySectionProps {
 export function CategorySection({
   category,
   onToast,
+  onLinkClick,
   onAddLink,
   onUpdateLink,
   onDeleteLinkClick,
@@ -65,6 +67,7 @@ export function CategorySection({
               key={item.id}
               item={item}
               onToast={onToast}
+              onLinkClick={onLinkClick}
               onUpdate={
                 onUpdateLink
                   ? (linkId, updatedItem) =>

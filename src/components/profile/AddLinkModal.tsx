@@ -256,6 +256,7 @@ function AddLinkForm({
               }
             : undefined,
           isCopyAction,
+          clickCount: 0,
         })
       );
       onClose();
